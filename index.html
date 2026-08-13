@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html class="light" lang="th">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>Logistics Hub - Admin</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- QR Code generator -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+* { font-family:'Sarabun',sans-serif; -webkit-tap-highlight-color:transparent; }
+.material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; font-family:'Material Symbols Outlined'!important; }
+.page-section { display:none; }
+.page-section.active { display:block; }
+.nav-item { transition:all .15s ease; }
+.nav-item.active { background:#e6eeff; color:#003461; border-left:4px solid #fe6b00; }
+.sidebar-label { opacity:0; white-space:nowrap; transition:opacity .3s ease; }
+aside:hover .sidebar-label { opacity:1; }
+.badge-dot { width:8px; height:8px; background:#fe6b00; border-radius:50%; display:inline-block; }
+@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.4} }
+.pulse { animation:pulse-dot 1.5s infinite; }
+@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+@keyframes shimmer { 0%{background-position:-200px 0} 100%{background-position:200px 0} }
+.skeleton { background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%); background-size:400px 100%; animation:shimmer 1.4s infinite; border-radius:6px; }
+@keyframes realtime-ring { 0%{box-shadow:0 0 0 0 rgba(0,100,255,.4)} 70%{box-shadow:0 0 0 8px rgba(0,100,255,0)} 100%{box-shadow:0 0 0 0 rgba(0,100,255,0)} }
+.realtime-update { animation:realtime-ring 1s ease; }
+@keyframes slideUp { from{transform:translateY(100%);opacity:0} to{transform:translateY(0);opacity:1} }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+@keyframes gps-ping { 0%{box-shadow:0 0 0 0 rgba(34,197,94,.5)} 70%{box-shadow:0 0 0 10px rgba(34,197,94,0)} 100%{box-shadow:0 0 0 0 rgba(34,197,94,0)} }
+.gps-ping { animation:gps-ping 1.8s infinite; }
+.fb-status { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700; padding:3px 10px; border-radius:99px; }
+.fb-status.connected { background:#dcfce7; color:#166534; }
+.fb-status.disconnected { background:#fee2e2; color:#991b1b; }
+.fb-status.connecting { background:#fef9c3; color:#854d0e; }
+.bottom-sheet { position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.5); display:none; align-items:flex-end; animation:fadeIn .2s ease; }
+.bottom-sheet.open { display:flex; }
+.bottom-sheet-content { background:#fff; width:100%; max-height:92vh; border-radius:20px 20px 0 0; overflow-y:auto; animation:slideUp .3s cubic-bezier(.34,1.2,.64,1); -webkit-overflow-scrolling:touch; }
+.bottom-sheet-handle { width:40px; height:4px; background:#e2e8f0; border-radius:2px; margin:12px auto 4px; }
+@media(min-width:768px) {
+  .bottom-sheet { align-items:center; justify-content:center; padding:16px; }
+  .bottom-sheet-content { border-radius:16px; max-width:560px; max-height:90vh; }
+  .bottom-sheet-handle { display:none; }
+}
+.touch-target { min-height:48px; min-width:48px; }
+.area-pill-mobile { display:flex; align-items:center; gap:10px; padding:14px 16px; border:1.5px solid #e2e8f0; border-radius:12px; cursor:pointer; transition:all .15s; font-size:15px; font-weight:600; color:#64748b; background:#fafbfc; user-select:none; min-height:52px; }
+.area-pill-mobile:active { transform:scale(.97); }
+.area-pill-mobile.selected { border-color:#003461; background:#003461; color:#fff; }
+.purpose-pill-mobile { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:14px 12px; border:1.5px solid #e2e8f0; border-radius:12px; cursor:pointer; transition:all .15s; text-align:center; font-size:14px; font-weight:700; color:#64748b; background:#fafbfc; user-select:none; min-height:72px; }
+.purpose-pill-mobile:active { transform:scale(.97); }
+.purpose-pill-mobile.selected.receive { border-color:#0369a1; background:#0369a1; color:#fff; }
+.purpose-pill-mobile.selected.deliver { border-color:#16a34a; background:#16a34a; color:#fff; }
+.mobile-input { width:100%; height:52px; padding:0 16px; border:1.5px solid #e2e8f0; border-radius:12px; font-size:16px; font-family:'Sarabun',sans-serif; color:#1e293b; background:#fff; outline:none; transition:border-color .2s,box-shadow .2s; -webkit-appearance:none; }
+.mobile-input:focus { border-color:#003461; box-shadow:0 0 0 3px rgba(0,52,97,.08); }
+.mobile-input::placeholder { color:#cbd5e1; font-size:15px; }
+.status-pill { display:inline-flex; align-items:center; gap:5px; padding:5px 12px; border-radius:99px; font-size:12px; font-weight:700; }
+.status-pill.waiting { background:#fef3c7; color:#92400e; }
+.status-pill.inarea  { background:#dbeafe; color:#1e40af; }
+.status-pill.done    { background:#dcfce7; color:#166534; }
+.queue-card { background:#fff; border-radius:14px; border:1px solid #e2e8f0; padding:16px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,.06); transition:all .15s; }
+.queue-card.inarea { border-left:4px solid #003461; background:#f8f9ff; }
+.kpi-card { background:#fff; border-radius:16px; padding:18px; border:1px solid #e2e8f0; box-shadow:0 1px 3px rgba(0,0,0,.05); }
+.action-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; border-radius:10px; font-weight:700; transition:all .15s; border:none; cursor:pointer; font-family:'Sarabun',sans-serif; }
+.action-btn:active { transform:scale(.96); }
+
+/* ── GPS ── */
+.gps-tracking-layout { display:grid; grid-template-columns:1fr; gap:14px; }
+@media(min-width:1024px) { .gps-tracking-layout { grid-template-columns:360px 1fr; height:calc(100vh - 128px); } }
+.truck-list-panel { background:#fff; border-radius:16px; border:1px solid #e2e8f0; box-shadow:0 2px 8px rgba(0,52,97,.06); display:flex; flex-direction:column; overflow:hidden; }
+.truck-list-scroll { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.truck-list-scroll::-webkit-scrollbar { width:3px; }
+.truck-list-scroll::-webkit-scrollbar-thumb { background:#c2c6d1; border-radius:2px; }
+.truck-row { display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #f1f5f9; cursor:pointer; transition:background .15s; }
+.truck-row:hover { background:#f8faff; }
+.truck-row.selected { background:#e6eeff; border-left:3px solid #003461; }
+.truck-row:last-child { border-bottom:none; }
+.gps-dot-live  { width:10px; height:10px; border-radius:50%; background:#22c55e; flex-shrink:0; }
+.gps-dot-stale { width:10px; height:10px; border-radius:50%; background:#f59e0b; flex-shrink:0; }
+.gps-dot-off   { width:10px; height:10px; border-radius:50%; background:#94a3b8; flex-shrink:0; }
+.map-panel { background:#1a2235; border-radius:16px; border:1px solid rgba(255,255,255,.08); overflow:hidden; position:relative; min-height:420px; }
+@media(min-width:1024px) { .map-panel { min-height:unset; height:100%; } }
+#gps-map { width:100%; height:100%; min-height:420px; border-radius:16px; }
+@media(min-width:1024px) { #gps-map { min-height:unset; height:100%; } }
+.map-overlay-header { position:absolute; top:12px; left:12px; right:12px; z-index:1000; display:flex; justify-content:space-between; align-items:flex-start; gap:8px; pointer-events:none; }
+.map-chip { background:rgba(255,255,255,.95); backdrop-filter:blur(8px); border-radius:10px; padding:6px 12px; font-size:12px; font-weight:700; color:#003461; box-shadow:0 2px 8px rgba(0,0,0,.15); display:inline-flex; align-items:center; gap:6px; pointer-events:all; }
+.leaflet-popup-content-wrapper { border-radius:14px!important; border:1px solid #e2e8f0; box-shadow:0 8px 24px rgba(0,52,97,.18)!important; padding:0!important; overflow:hidden; }
+.leaflet-popup-content { margin:0!important; width:260px!important; }
+.leaflet-popup-tip-container { display:none; }
+.truck-popup { padding:16px; font-family:'Sarabun',sans-serif; }
+.truck-popup-header { display:flex; align-items:center; gap:10px; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid #f1f5f9; }
+.truck-popup-plate { font-size:18px; font-weight:800; color:#003461; }
+.truck-popup-province { font-size:13px; color:#64748b; font-weight:500; }
+.truck-popup-badge { font-size:10px; font-weight:700; padding:3px 8px; border-radius:99px; }
+.truck-popup-badge.live { background:#dcfce7; color:#166534; }
+.truck-popup-badge.stale { background:#fef3c7; color:#92400e; }
+.truck-popup-rows { display:flex; flex-direction:column; gap:8px; }
+.truck-popup-row { display:flex; justify-content:space-between; align-items:center; font-size:13px; }
+.truck-popup-row .label { color:#94a3b8; font-weight:600; }
+.truck-popup-row .val { color:#1e293b; font-weight:700; text-align:right; max-width:160px; }
+.truck-popup-actions { display:flex; gap:8px; margin-top:14px; padding-top:12px; border-top:1px solid #f1f5f9; }
+.popup-btn { flex:1; height:36px; border-radius:8px; font-size:12px; font-weight:700; border:none; cursor:pointer; font-family:'Sarabun',sans-serif; display:flex; align-items:center; justify-content:center; gap:4px; }
+.popup-btn.primary { background:#003461; color:#fff; }
+.popup-btn.secondary { background:#f1f5f9; color:#475569; }
+.map-no-gps { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:linear-gradient(135deg,#0f172a,#1a2235); color:#fff; gap:14px; padding:32px; z-index:5; border-radius:16px; }
+.debug-panel { background:#0f172a; border:1px solid #1e3a5f; border-radius:12px; padding:14px 16px; font-family:monospace; font-size:12px; color:#7dd3fc; margin-bottom:14px; }
+.debug-panel .log-ok  { color:#4ade80; }
+.debug-panel .log-err { color:#f87171; }
+.debug-panel .log-warn{ color:#fbbf24; }
+.orphan-banner { background:#fff7ed; border:1.5px solid #fed7aa; border-radius:12px; padding:12px 16px; display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+.orphan-banner .ob-text { flex:1; font-size:13px; font-weight:700; color:#c2410c; }
+.orphan-banner .ob-sub  { font-size:11px; font-weight:500; color:#ea580c; margin-top:2px; }
+
+/* ══ REPORT ══ */
+.rpt-date-input { height:48px; padding:0 14px; border:1.5px solid #e2e8f0; border-radius:12px; font-size:15px; font-family:'Sarabun',sans-serif; color:#1e293b; background:#fff; outline:none; transition:border-color .2s,box-shadow .2s; -webkit-appearance:none; width:100%; }
+.rpt-date-input:focus { border-color:#003461; box-shadow:0 0 0 3px rgba(0,52,97,.08); }
+.rpt-kpi { background:#fff; border-radius:14px; border:1px solid #e2e8f0; padding:16px 20px; display:flex; flex-direction:column; gap:4px; box-shadow:0 1px 3px rgba(0,0,0,.05); }
+.rpt-table { width:100%; border-collapse:collapse; font-size:13px; }
+.rpt-table thead tr { background:#e6eeff; }
+.rpt-table thead th { padding:11px 14px; text-align:left; font-size:11px; font-weight:800; color:#003461; text-transform:uppercase; letter-spacing:.5px; white-space:nowrap; }
+.rpt-table tbody tr { border-bottom:1px solid #f1f5f9; transition:background .12s; }
+.rpt-table tbody tr:hover { background:#f8faff; }
+.rpt-table tbody td { padding:11px 14px; vertical-align:middle; color:#1e293b; }
+.rpt-table tbody tr:last-child { border-bottom:none; }
+.rpt-badge { display:inline-flex; align-items:center; padding:3px 10px; border-radius:99px; font-size:11px; font-weight:700; }
+.rpt-badge.waiting { background:#fef3c7; color:#92400e; }
+.rpt-badge.inarea  { background:#dbeafe; color:#1e40af; }
+.rpt-badge.done    { background:#dcfce7; color:#166534; }
+.rpt-badge.receive { background:#e0f2fe; color:#0369a1; }
+.rpt-badge.deliver { background:#dcfce7; color:#166534; }
+.rpt-empty { padding:56px 20px; text-align:center; color:#94a3b8; }
+.filter-chip { display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:10px; border:1.5px solid #e2e8f0; font-size:13px; font-weight:700; color:#64748b; background:#fafbfc; cursor:pointer; transition:all .15s; user-select:none; white-space:nowrap; }
+.filter-chip:hover { border-color:#003461; color:#003461; background:#e6eeff; }
+.filter-chip.active { border-color:#003461; background:#003461; color:#fff; }
+.filter-chip.purpose-r.active { border-color:#0369a1; background:#0369a1; color:#fff; }
+.filter-chip.purpose-d.active { border-color:#16a34a; background:#16a34a; color:#fff; }
+
+/* ══ SHARE MODAL ══ */
+.share-modal-overlay { position:fixed; inset:0; z-index:70; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; padding:16px; animation:fadeIn .2s ease; }
+.share-modal-overlay.open { display:flex; }
+.share-modal-box { background:#fff; border-radius:24px; width:100%; max-width:480px; box-shadow:0 24px 64px rgba(0,52,97,.25); overflow:hidden; animation:slideUp .3s cubic-bezier(.34,1.2,.64,1); }
+.share-modal-header { background:linear-gradient(135deg,#003461,#004b87); padding:20px 24px 16px; color:#fff; }
+.share-url-box { background:#f8f9ff; border:1.5px solid #c2c6d1; border-radius:12px; padding:12px 14px; font-family:monospace; font-size:12px; color:#003461; word-break:break-all; line-height:1.6; max-height:80px; overflow-y:auto; cursor:pointer; transition:all .2s; }
+.share-url-box:hover { border-color:#003461; background:#e6eeff; }
+.share-channel-btn { display:flex; flex-direction:column; align-items:center; gap:6px; padding:14px 12px; border-radius:14px; border:1.5px solid #e2e8f0; cursor:pointer; transition:all .15s; font-size:12px; font-weight:700; color:#475569; background:#fafbfc; user-select:none; flex:1; min-width:64px; }
+.share-channel-btn:hover { border-color:#003461; background:#e6eeff; color:#003461; }
+.share-channel-btn:active { transform:scale(.94); }
+.share-channel-btn .icon-wrap { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px; }
+/* QR */
+#share-qr-canvas { display:flex; align-items:center; justify-content:center; }
+#share-qr-canvas canvas, #share-qr-canvas img { border-radius:12px; border:4px solid #e6eeff; }
+/* Copy feedback */
+@keyframes copied-flash { 0%{background:#003461} 100%{background:#f8f9ff} }
+.copied-flash { animation:copied-flash .5s ease; }
+
+/* ══ PRINT PDF ══ */
+@media print {
+  .no-print { display:none!important; }
+  body { background:#fff!important; }
+  .rpt-print-header { display:flex!important; }
+  #page-report { padding:0!important; }
+  .rpt-table thead tr { background:#003461!important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .rpt-table thead th { color:#fff!important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .rpt-table tbody tr:nth-child(even) { background:#f8faff!important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .rpt-badge { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .rpt-no-print { display:none!important; }
+  aside,header,nav,.fab,.share-modal-overlay { display:none!important; }
+  main { margin:0!important; padding:0!important; }
+}
+
+.fab { position:fixed; bottom:80px; right:20px; z-index:40; width:56px; height:56px; border-radius:50%; background:#003461; color:#fff; border:none; box-shadow:0 4px 16px rgba(0,52,97,.4); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all .2s; }
+.fab:active { transform:scale(.92); }
+@media(min-width:1024px) { .fab { display:none; } }
+#toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%) translateY(20px); z-index:999; pointer-events:none; opacity:0; transition:all .3s cubic-bezier(.34,1.56,.64,1); white-space:nowrap; }
+#toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+@media(min-width:1024px) { #toast { bottom:24px; } }
+</style>
+<script>
+  tailwind.config={darkMode:"class",theme:{extend:{colors:{
+    "inverse-surface":"#233144","on-primary":"#ffffff","surface":"#f8f9ff",
+    "surface-container-low":"#eff4ff","secondary-container":"#fe6b00",
+    "surface-container":"#e6eeff","outline-variant":"#c2c6d1",
+    "primary":"#003461","on-surface-variant":"#424750","error-container":"#ffdad6",
+    "on-tertiary-container":"#63cd9a","surface-container-highest":"#d5e3fd",
+    "surface-container-high":"#dde9ff","outline":"#727781",
+    "primary-container":"#004b87","background":"#f8f9ff","on-surface":"#0d1c2f",
+    "on-error-container":"#93000a","surface-bright":"#f8f9ff",
+    "surface-container-lowest":"#ffffff","tertiary-container":"#005537",
+    "error":"#ba1a1a","tertiary":"#003c25","inverse-on-surface":"#ebf1ff"
+  }}}}
+</script>
+</head>
+<body class="bg-background text-on-surface min-h-screen overflow-x-hidden">
+
+<!-- ===== TOPBAR ===== -->
+<header class="no-print flex justify-between items-center w-full px-4 lg:px-6 bg-surface shadow-sm sticky top-0 z-50 h-16 border-b border-outline-variant">
+  <div class="flex items-center gap-3">
+    <button class="lg:hidden touch-target flex items-center justify-center rounded-xl text-primary" onclick="toggleMobileNav()">
+      <span class="material-symbols-outlined text-2xl">menu</span>
+    </button>
+    <div>
+      <div class="text-lg font-black tracking-tight text-primary leading-tight">Logistics Queue</div>
+      <div class="text-xs text-on-surface-variant font-medium hidden sm:block">Admin · queue_v2</div>
+    </div>
+  </div>
+  <div class="flex items-center gap-2">
+    <div id="fb-conn-badge" class="fb-status connecting no-print">
+      <span class="w-2 h-2 rounded-full bg-yellow-500 inline-block pulse"></span>
+      <span class="hidden sm:inline">กำลังเชื่อมต่อ...</span>
+    </div>
+    <button class="touch-target flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container-low transition-colors relative" onclick="navigateTo('activity')">
+      <span class="material-symbols-outlined">notifications</span>
+      <span id="notif-badge" class="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full pulse hidden border-2 border-white"></span>
+    </button>
+    <button onclick="openModal()" class="hidden lg:flex touch-target px-5 items-center justify-center bg-primary text-white rounded-xl font-bold text-sm hover:bg-primary-container transition-colors shadow-sm gap-2">
+      <span class="material-symbols-outlined text-base">add</span>ลงทะเบียนรถ
+    </button>
+  </div>
+</header>
+
+<!-- ===== MOBILE NAV DRAWER ===== -->
+<div id="mobile-drawer" class="lg:hidden fixed top-16 left-0 bottom-0 w-72 bg-surface-container-lowest border-r border-outline-variant z-50 -translate-x-full transition-transform duration-300 shadow-2xl overflow-y-auto no-print">
+  <nav class="p-3 flex flex-col gap-1 pt-4">
+    <button onclick="navigateTo('dashboard');closeMobileNav();" data-page="dashboard" class="mob-nav flex items-center gap-3 px-4 h-14 rounded-xl text-on-surface-variant hover:bg-surface-container-high transition-colors w-full text-left">
+      <span class="material-symbols-outlined text-2xl">dashboard</span>
+      <div><div class="font-bold text-base">แดชบอร์ด</div><div class="text-xs opacity-60">ภาพรวม</div></div>
+    </button>
+    <button onclick="navigateTo('queue');closeMobileNav();" data-page="queue" class="mob-nav flex items-center gap-3 px-4 h-14 rounded-xl text-on-surface-variant hover:bg-surface-container-high transition-colors w-full text-left">
+      <span class="material-symbols-outlined text-2xl">manage_accounts</span>
+      <div><div class="font-bold text-base">คิวสด</div><div class="text-xs opacity-60">จัดการคิวทั้งหมด</div></div>
+    </button>
+    <button onclick="navigateTo('activity');closeMobileNav();" data-page="activity" class="mob-nav flex items-center gap-3 px-4 h-14 rounded-xl text-on-surface-variant hover:bg-surface-container-high transition-colors w-full text-left">
+      <span class="material-symbols-outlined text-2xl">notifications_active</span>
+      <div><div class="font-bold text-base">กิจกรรม</div><div class="text-xs opacity-60">Activity Feed</div></div>
+    </button>
+    <button onclick="navigateTo('gps-track');closeMobileNav();" data-page="gps-track" class="mob-nav flex items-center gap-3 px-4 h-14 rounded-xl text-on-surface-variant hover:bg-surface-container-high transition-colors w-full text-left">
+      <span class="material-symbols-outlined text-2xl">satellite_alt</span>
+      <div>
+        <div class="font-bold text-base flex items-center gap-2">GPS Tracking
+          <span id="mob-drawer-gps-live" class="w-2 h-2 rounded-full bg-green-500 inline-block pulse hidden"></span>
+        </div>
+        <div class="text-xs opacity-60">ติดตามรถ Realtime</div>
+      </div>
+    </button>
+    <button onclick="navigateTo('report');closeMobileNav();" data-page="report" class="mob-nav flex items-center gap-3 px-4 h-14 rounded-xl text-on-surface-variant hover:bg-surface-container-high transition-colors w-full text-left">
+      <span class="material-symbols-outlined text-2xl">assessment</span>
+      <div><div class="font-bold text-base">รายงาน</div><div class="text-xs opacity-60">Export / Share</div></div>
+    </button>
+    <div class="my-2 border-t border-outline-variant"></div>
+    <button onclick="navigateTo('settings');closeMobileNav();" data-page="settings" class="mob-nav flex items-center gap-3 px-4 h-14 rounded-xl text-on-surface-variant hover:bg-surface-container-high transition-colors w-full text-left">
+      <span class="material-symbols-outlined text-2xl">settings</span>
+      <div><div class="font-bold text-base">ตั้งค่า</div></div>
+    </button>
+  </nav>
+</div>
+<div id="drawer-overlay" class="lg:hidden fixed inset:0 bg-black bg-opacity-40 z-40 hidden" onclick="closeMobileNav()"></div>
+
+<div class="flex min-h-screen">
+  <!-- ===== DESKTOP SIDEBAR ===== -->
+  <aside class="no-print hidden lg:flex fixed left-0 top-16 bottom-0 w-20 hover:w-64 flex-col bg-surface-container-lowest border-r border-outline-variant z-40 group transition-all duration-300 overflow-x-hidden shadow-sm">
+    <div class="py-5 border-b border-outline-variant flex flex-col w-64">
+      <div class="flex items-center w-full mb-4">
+        <div class="w-20 flex justify-center shrink-0"><div class="w-11 h-11 rounded-full bg-primary flex items-center justify-center text-white font-black text-lg">LH</div></div>
+        <div class="sidebar-label"><div class="text-sm font-bold">Logistics Hub</div><div class="text-xs text-on-surface-variant">Admin Portal v4</div></div>
+      </div>
+      <div class="px-3 w-full">
+        <button onclick="openModal()" class="w-full h-12 flex items-center justify-center bg-primary text-white rounded-xl font-bold text-sm hover:bg-primary-container gap-2 overflow-hidden">
+          <span class="material-symbols-outlined text-base shrink-0">add</span>
+          <span class="sidebar-label text-sm">ลงทะเบียนรถ</span>
+        </button>
+      </div>
+    </div>
+    <nav class="flex-1 py-3 flex flex-col gap-1 w-64 px-2">
+      <button onclick="navigateTo('dashboard')" data-page="dashboard" class="desk-nav nav-item active flex items-center h-12 rounded-xl text-on-surface-variant hover:bg-surface-container-high w-full text-left">
+        <div class="w-16 flex justify-center items-center shrink-0"><span class="material-symbols-outlined text-xl">dashboard</span></div>
+        <div class="sidebar-label flex flex-col items-start"><span class="text-sm font-bold">แดชบอร์ด</span></div>
+      </button>
+      <button onclick="navigateTo('queue')" data-page="queue" class="desk-nav nav-item flex items-center h-12 rounded-xl text-on-surface-variant hover:bg-surface-container-high w-full text-left">
+        <div class="w-16 flex justify-center items-center shrink-0 relative">
+          <span class="material-symbols-outlined text-xl">manage_accounts</span>
+          <span id="queue-live-dot" class="absolute top-1 right-2 badge-dot pulse hidden"></span>
+        </div>
+        <div class="sidebar-label flex flex-col items-start"><span class="text-sm font-bold">คิวสด / จัดการ</span></div>
+      </button>
+      <button onclick="navigateTo('activity')" data-page="activity" class="desk-nav nav-item flex items-center h-12 rounded-xl text-on-surface-variant hover:bg-surface-container-high w-full text-left">
+        <div class="w-16 flex justify-center items-center shrink-0 relative">
+          <span class="material-symbols-outlined text-xl">notifications_active</span>
+          <span id="activity-dot" class="absolute top-1 right-2 badge-dot pulse hidden"></span>
+        </div>
+        <div class="sidebar-label flex flex-col items-start"><span class="text-sm font-bold">กิจกรรม</span></div>
+      </button>
+      <button onclick="navigateTo('gps-track')" data-page="gps-track" class="desk-nav nav-item flex items-center h-12 rounded-xl text-on-surface-variant hover:bg-surface-container-high w-full text-left">
+        <div class="w-16 flex justify-center items-center shrink-0 relative">
+          <span class="material-symbols-outlined text-xl">satellite_alt</span>
+          <span id="gps-sidebar-dot" class="absolute top-1 right-2 w-2 h-2 rounded-full bg-green-500 hidden pulse"></span>
+        </div>
+        <div class="sidebar-label flex flex-col items-start"><span class="text-sm font-bold">GPS Tracking</span></div>
+      </button>
+      <button onclick="navigateTo('report')" data-page="report" class="desk-nav nav-item flex items-center h-12 rounded-xl text-on-surface-variant hover:bg-surface-container-high w-full text-left">
+        <div class="w-16 flex justify-center items-center shrink-0"><span class="material-symbols-outlined text-xl">assessment</span></div>
+        <div class="sidebar-label flex flex-col items-start"><span class="text-sm font-bold">รายงาน</span></div>
+      </button>
+    </nav>
+    <div class="py-3 border-t border-outline-variant flex flex-col gap-1 w-64 px-2">
+      <button onclick="navigateTo('settings')" data-page="settings" class="desk-nav nav-item flex items-center h-12 rounded-xl text-on-surface-variant hover:bg-surface-container-high w-full text-left">
+        <div class="w-16 flex justify-center items-center shrink-0"><span class="material-symbols-outlined text-xl">settings</span></div>
+        <div class="sidebar-label flex flex-col items-start"><span class="text-sm font-bold">ตั้งค่า</span></div>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <main class="flex-1 p-4 pb-24 lg:pb-8 lg:ml-20 overflow-x-hidden">
+
+    <!-- DASHBOARD -->
+    <section id="page-dashboard" class="page-section active">
+      <div class="mb-5 flex justify-between items-center flex-wrap gap-2">
+        <div><h1 class="text-xl lg:text-2xl font-black text-primary">แดชบอร์ด</h1><p class="text-xs text-on-surface-variant">อัปเดต: <span id="last-update">–</span></p></div>
+        <div class="flex items-center gap-2 text-xs text-on-surface-variant font-bold bg-surface-container px-3 py-2 rounded-lg"><span class="w-2 h-2 rounded-full bg-tertiary-container inline-block pulse"></span>Realtime</div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mb-5">
+        <div class="kpi-card"><div class="text-xs font-bold text-on-surface-variant uppercase tracking-wide mb-1">รถในระบบ</div><div id="kpi-total" class="text-4xl font-black text-primary leading-none">–</div><div class="text-xs text-on-surface-variant mt-1">ทั้งหมด</div></div>
+        <div class="kpi-card"><div class="text-xs font-bold text-on-surface-variant uppercase tracking-wide mb-1">รอคิว</div><div id="kpi-waiting" class="text-4xl font-black text-secondary-container leading-none">–</div><div class="text-xs text-on-surface-variant mt-1">Waiting</div></div>
+        <div class="kpi-card"><div class="text-xs font-bold text-on-surface-variant uppercase tracking-wide mb-1">ในพื้นที่</div><div id="kpi-inarea" class="text-4xl font-black text-tertiary-container leading-none">–</div><div class="text-xs text-on-surface-variant mt-1">In Area</div></div>
+        <div class="kpi-card cursor-pointer hover:shadow-md transition-shadow" onclick="navigateTo('gps-track')"><div class="text-xs font-bold text-on-surface-variant uppercase tracking-wide mb-1">GPS Live</div><div id="kpi-gps-live" class="text-4xl font-black text-primary leading-none">–</div><div class="text-xs text-on-surface-variant mt-1 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block pulse"></span>แตะดูแผนที่</div></div>
+      </div>
+      <div class="bg-white border border-outline-variant rounded-2xl p-4 mb-4 shadow-sm">
+        <div class="font-bold text-on-surface mb-3 flex items-center gap-2"><span class="material-symbols-outlined text-primary text-xl">place</span>รถรอตามพื้นที่</div>
+        <div id="area-breakdown" class="flex flex-col gap-2"></div>
+      </div>
+      <div class="bg-white border border-outline-variant rounded-2xl p-4 shadow-sm">
+        <div class="flex justify-between items-center mb-3">
+          <div class="font-bold text-on-surface flex items-center gap-2"><span class="material-symbols-outlined text-primary text-xl">history</span>กิจกรรมล่าสุด</div>
+          <button onclick="navigateTo('activity')" class="text-xs text-primary font-bold hover:underline">ดูทั้งหมด</button>
+        </div>
+        <div id="dashboard-activity-list" class="flex flex-col gap-2"><div class="skeleton h-12 w-full"></div><div class="skeleton h-12 w-full"></div></div>
+      </div>
+    </section>
+
+    <!-- QUEUE -->
+    <section id="page-queue" class="page-section">
+      <div class="mb-4 flex justify-between items-center flex-wrap gap-2">
+        <div><h1 class="text-xl lg:text-2xl font-black text-primary">จัดการคิวรถ</h1><p class="text-xs text-on-surface-variant"><span id="queue-count">0</span> คัน · Realtime</p></div>
+      </div>
+      <div class="grid grid-cols-3 gap-2 mb-4">
+        <div class="bg-white border border-outline-variant rounded-xl p-3 text-center shadow-sm"><div id="qs-waiting" class="text-2xl font-black text-secondary-container">0</div><div class="text-xs font-bold text-on-surface-variant uppercase">รอ</div></div>
+        <div class="bg-white border border-outline-variant rounded-xl p-3 text-center shadow-sm"><div id="qs-inarea" class="text-2xl font-black text-tertiary-container">0</div><div class="text-xs font-bold text-on-surface-variant uppercase">ในพื้นที่</div></div>
+        <div class="bg-white border border-outline-variant rounded-xl p-3 text-center shadow-sm"><div id="qs-done" class="text-2xl font-black text-primary">0</div><div class="text-xs font-bold text-on-surface-variant uppercase">เสร็จ</div></div>
+      </div>
+      <div class="flex gap-2 mb-4 overflow-x-auto pb-1 -mx-4 px-4" style="scrollbar-width:none;">
+        <select id="filter-status" class="h-10 px-3 rounded-xl bg-white border border-outline-variant outline-none text-sm font-bold text-on-surface-variant shrink-0" onchange="renderQueue()"><option value="">ทุกสถานะ</option><option value="waiting">รอคิว</option><option value="inarea">ในพื้นที่</option><option value="done">เสร็จสิ้น</option></select>
+        <select id="filter-area" class="h-10 px-3 rounded-xl bg-white border border-outline-variant outline-none text-sm font-bold text-on-surface-variant shrink-0" onchange="renderQueue()"><option value="">ทุกพื้นที่</option><option value="Receiving P#1">Receiving P#1</option><option value="Receiving P#5">Receiving P#5</option><option value="Staging P#4">Staging P#4</option><option value="Shipping P#3">Shipping P#3</option><option value="ศุลกากร">ศุลกากร</option><option value="พื้นที่อื่น">พื้นที่อื่น</option></select>
+        <select id="filter-purpose" class="h-10 px-3 rounded-xl bg-white border border-outline-variant outline-none text-sm font-bold text-on-surface-variant shrink-0" onchange="renderQueue()"><option value="">ทุกวัตถุประสงค์</option><option value="receive">รับของ</option><option value="deliver">ส่งของ</option></select>
+        <button onclick="resetDailyQueue()" class="h-10 px-3 rounded-xl border border-error text-error font-bold text-sm shrink-0 flex items-center gap-1 whitespace-nowrap"><span class="material-symbols-outlined text-sm">restart_alt</span>Reset</button>
+      </div>
+      <div id="queue-cards" class="pb-4"><div class="skeleton h-20 w-full rounded-2xl mb-3"></div><div class="skeleton h-20 w-full rounded-2xl mb-3"></div><div class="skeleton h-20 w-full rounded-2xl"></div></div>
+      <div class="hidden lg:block bg-white border border-outline-variant rounded-2xl shadow-sm overflow-hidden">
+        <div class="overflow-auto">
+          <table class="w-full text-left border-collapse">
+            <thead class="bg-surface-container sticky top-0 z-10"><tr>
+              <th class="p-4 text-xs font-bold text-on-surface-variant uppercase tracking-wider">คิว</th>
+              <th class="p-4 text-xs font-bold text-on-surface-variant uppercase tracking-wider">ทะเบียน / คนขับ</th>
+              <th class="p-4 text-xs font-bold text-on-surface-variant uppercase tracking-wider">พื้นที่</th>
+              <th class="p-4 text-xs font-bold text-on-surface-variant uppercase tracking-wider">บริษัท</th>
+              <th class="p-4 text-xs font-bold text-on-surface-variant uppercase tracking-wider">GPS</th>
+              <th class="p-4 text-xs font-bold text-on-surface-variant uppercase tracking-wider">สถานะ</th>
+              <th class="p-4 text-xs font-bold text-on-surface-variant uppercase tracking-wider text-right">การดำเนินการ</th>
+            </tr></thead>
+            <tbody id="queue-table-body" class="divide-y divide-outline-variant"></tbody>
+          </table>
+        </div>
+        <div class="p-3 border-t border-outline-variant bg-surface"><span class="text-xs text-on-surface-variant" id="queue-info">กำลังโหลด...</span></div>
+      </div>
+    </section>
+
+    <!-- ACTIVITY -->
+    <section id="page-activity" class="page-section">
+      <div class="mb-4"><h1 class="text-xl lg:text-2xl font-black text-primary">กิจกรรม</h1><p class="text-xs text-on-surface-variant">Activity Feed · Realtime</p></div>
+      <div class="bg-white border border-outline-variant rounded-2xl shadow-sm overflow-hidden">
+        <div class="p-4 border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
+          <span class="font-bold text-on-surface text-sm">รายการกิจกรรม</span>
+          <button onclick="clearActivityBadge()" class="text-xs text-primary font-bold">อ่านทั้งหมด</button>
+        </div>
+        <div id="activity-feed" class="flex flex-col divide-y divide-outline-variant" style="max-height:70vh;overflow-y:auto;-webkit-overflow-scrolling:touch;"><div class="p-4"><div class="skeleton h-14 w-full mb-2"></div><div class="skeleton h-14 w-full"></div></div></div>
+      </div>
+    </section>
+
+    <!-- GPS TRACKING -->
+    <section id="page-gps-track" class="page-section">
+      <div class="mb-4 flex justify-between items-center flex-wrap gap-3">
+        <div>
+          <h1 class="text-xl lg:text-2xl font-black text-primary flex items-center gap-2"><span class="material-symbols-outlined text-2xl">satellite_alt</span>GPS Tracking — Realtime</h1>
+          <p class="text-xs text-on-surface-variant mt-0.5">Firebase: <code class="bg-surface-container px-1.5 py-0.5 rounded text-primary font-bold">truck_locations/</code></p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-green-50 border border-green-200 text-green-700"><span class="w-2 h-2 rounded-full bg-green-500 inline-block pulse"></span><span id="gps-live-count">0</span> คันส่งสัญญาณ</div>
+          <button onclick="forceRefreshGps()" class="action-btn h-9 px-3 border border-outline-variant text-on-surface-variant text-sm gap-1"><span class="material-symbols-outlined text-base">refresh</span>รีเฟรช</button>
+          <button onclick="cleanupOrphanLocations()" id="cleanup-btn" class="action-btn h-9 px-3 border border-orange-300 text-orange-700 bg-orange-50 text-sm gap-1 hidden"><span class="material-symbols-outlined text-base">cleaning_services</span>ล้างข้อมูลค้าง (<span id="cleanup-count">0</span>)</button>
+        </div>
+      </div>
+      <div id="orphan-banner" class="orphan-banner hidden"><span class="material-symbols-outlined text-orange-500 text-2xl">warning</span><div><div class="ob-text">พบข้อมูลตำแหน่งรถค้างใน Firebase</div><div class="ob-sub" id="orphan-banner-detail">–</div></div><button onclick="cleanupOrphanLocations()" class="action-btn h-9 px-4 bg-orange-500 text-white text-xs gap-1 shrink-0"><span class="material-symbols-outlined text-sm">delete_sweep</span>ลบทันที</button></div>
+      <div id="debug-panel" class="debug-panel mb-4"><div class="flex items-center justify-between mb-2"><span class="font-bold text-white text-xs">🔧 GPS Debug Panel</span><button onclick="document.getElementById('debug-panel').style.display='none'" class="text-xs text-slate-400 hover:text-white">ซ่อน</button></div><div id="debug-log" class="flex flex-col gap-1 text-xs"><span class="text-slate-400">รอข้อมูล...</span></div></div>
+      <div class="grid grid-cols-4 gap-2 mb-4">
+        <div class="bg-white border border-outline-variant rounded-xl p-3 text-center shadow-sm"><div id="gps-cnt-total" class="text-2xl font-black text-primary">0</div><div class="text-xs font-bold text-on-surface-variant uppercase">รถทั้งหมด</div></div>
+        <div class="bg-white border border-outline-variant rounded-xl p-3 text-center shadow-sm"><div id="gps-cnt-live" class="text-2xl font-black" style="color:#16a34a;">0</div><div class="text-xs font-bold text-on-surface-variant uppercase flex items-center justify-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block pulse"></span>GPS Live</div></div>
+        <div class="bg-white border border-outline-variant rounded-xl p-3 text-center shadow-sm"><div id="gps-cnt-stale" class="text-2xl font-black text-secondary-container">0</div><div class="text-xs font-bold text-on-surface-variant uppercase">สัญญาณเก่า</div></div>
+        <div class="bg-white border border-outline-variant rounded-xl p-3 text-center shadow-sm"><div id="gps-cnt-notrack" class="text-2xl font-black text-outline">0</div><div class="text-xs font-bold text-on-surface-variant uppercase">ไม่มี GPS</div></div>
+      </div>
+      <div class="gps-tracking-layout">
+        <div class="truck-list-panel">
+          <div class="px-4 py-3 border-b border-outline-variant bg-surface-container-low flex-shrink-0">
+            <div class="font-bold text-on-surface text-sm mb-2 flex items-center gap-2"><span class="material-symbols-outlined text-primary text-base">list</span>รายการรถ (<span id="truck-list-count">0</span> คัน)</div>
+            <div class="relative"><span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span><input id="gps-search-input" type="text" placeholder="ค้นหาทะเบียน, คนขับ, พื้นที่..." class="w-full h-10 pl-9 pr-3 border border-outline-variant rounded-xl text-sm font-medium bg-white outline-none focus:border-primary" oninput="renderTruckList()"/></div>
+          </div>
+          <div class="truck-list-scroll" id="truck-list-scroll"><div class="p-4"><div class="skeleton h-16 w-full mb-2 rounded-xl"></div><div class="skeleton h-16 w-full mb-2 rounded-xl"></div><div class="skeleton h-16 w-full rounded-xl"></div></div></div>
+        </div>
+        <div class="map-panel" id="map-panel">
+          <div class="map-overlay-header"><div class="map-chip"><span class="w-2 h-2 rounded-full bg-green-500 inline-block pulse"></span><span id="map-status-text">รอสัญญาณ GPS...</span></div><button class="map-chip" onclick="zoomAllTrucks()"><span class="material-symbols-outlined" style="font-size:16px;">fit_screen</span>ดูทั้งหมด</button></div>
+          <div id="gps-map"></div>
+          <div class="map-no-gps" id="map-no-gps"><span class="material-symbols-outlined" style="font-size:56px;color:rgba(148,163,184,.3);">satellite_alt</span><div style="font-size:18px;font-weight:800;">ไม่มีรถในคิว</div><div style="font-size:13px;color:rgba(255,255,255,.4);text-align:center;max-width:280px;line-height:1.6;">ลงทะเบียนรถเข้าคิวก่อน</div></div>
+        </div>
+      </div>
+      <div id="mobile-truck-detail" class="mt-4 bg-white border border-outline-variant rounded-2xl p-4 shadow-sm" style="display:none;"><div id="mobile-truck-detail-content"></div></div>
+    </section>
+
+    <!-- ═══════════════════════════════════════
+         REPORT PAGE
+    ═══════════════════════════════════════ -->
+    <section id="page-report" class="page-section">
+
+      <!-- Print header (screen hidden) -->
+      <div id="rpt-print-header" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:3px solid #003461;margin-bottom:24px;">
+          <div><div style="font-size:22px;font-weight:900;color:#003461;">Logistics Hub — รายงานคิวรถ</div><div style="font-size:13px;color:#64748b;margin-top:4px;" id="rpt-print-daterange">–</div></div>
+          <div style="text-align:right;font-size:12px;color:#64748b;"><div>พิมพ์: <span id="rpt-print-ts"></span></div><div>Admin Portal · queue_v2</div></div>
+        </div>
+      </div>
+
+      <!-- Screen header -->
+      <div class="mb-5 flex justify-between items-start flex-wrap gap-3 rpt-no-print">
+        <div>
+          <h1 class="text-xl lg:text-2xl font-black text-primary flex items-center gap-2">
+            <span class="material-symbols-outlined text-2xl">assessment</span>รายงานคิวรถ
+          </h1>
+          <p class="text-xs text-on-surface-variant mt-0.5">ข้อมูลจาก Firebase · queue_v2</p>
+        </div>
+        <!-- Action buttons -->
+        <div class="flex gap-2 flex-wrap rpt-no-print">
+          <!-- ★ SHARE BUTTON -->
+          <button onclick="openShareModal()"
+            class="action-btn h-10 px-4 border-2 border-primary text-primary text-sm gap-2 hover:bg-primary hover:text-white transition-colors">
+            <span class="material-symbols-outlined text-base">share</span>แชร์รายงาน
+          </button>
+          <button onclick="exportExcel()"
+            class="action-btn h-10 px-4 bg-green-600 text-white text-sm gap-2 hover:bg-green-700">
+            <span class="material-symbols-outlined text-base">table_view</span>Excel
+          </button>
+          <button onclick="printPDF()"
+            class="action-btn h-10 px-4 bg-primary text-white text-sm gap-2 hover:bg-primary-container">
+            <span class="material-symbols-outlined text-base">picture_as_pdf</span>PDF
+          </button>
+        </div>
+      </div>
+
+      <!-- Filter Form -->
+      <div class="bg-white border border-outline-variant rounded-2xl p-5 mb-5 shadow-sm rpt-no-print">
+        <div class="font-bold text-on-surface mb-4 flex items-center gap-2"><span class="material-symbols-outlined text-primary text-xl">tune</span>ตัวกรองรายงาน</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+          <div><label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider block mb-2">วันที่เริ่มต้น</label><input type="date" id="rpt-date-start" class="rpt-date-input" onchange="applyReportFilter()"/></div>
+          <div><label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider block mb-2">วันที่สิ้นสุด</label><input type="date" id="rpt-date-end" class="rpt-date-input" onchange="applyReportFilter()"/></div>
+          <div><label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider block mb-2">พื้นที่</label>
+            <select id="rpt-filter-area" class="rpt-date-input" onchange="applyReportFilter()">
+              <option value="">ทุกพื้นที่</option><option value="Receiving P#1">Receiving P#1</option><option value="Receiving P#5">Receiving P#5</option><option value="Staging P#4">Staging P#4</option><option value="Shipping P#3">Shipping P#3</option><option value="ศุลกากร">ศุลกากร</option><option value="พื้นที่อื่น">พื้นที่อื่น</option>
+            </select>
+          </div>
+          <div><label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider block mb-2">สถานะ</label>
+            <select id="rpt-filter-status" class="rpt-date-input" onchange="applyReportFilter()">
+              <option value="">ทุกสถานะ</option><option value="waiting">รอคิว</option><option value="inarea">ในพื้นที่</option><option value="done">เสร็จสิ้น</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex gap-2 flex-wrap mb-4">
+          <span class="text-xs font-bold text-on-surface-variant self-center">Quick:</span>
+          <button onclick="setQuickDate('today')"     id="qd-today"     class="filter-chip">วันนี้</button>
+          <button onclick="setQuickDate('yesterday')" id="qd-yesterday" class="filter-chip">เมื่อวาน</button>
+          <button onclick="setQuickDate('week')"      id="qd-week"      class="filter-chip">7 วันที่แล้ว</button>
+          <button onclick="setQuickDate('month')"     id="qd-month"     class="filter-chip">เดือนนี้</button>
+          <button onclick="setQuickDate('all')"       id="qd-all"       class="filter-chip active">ทั้งหมด</button>
+        </div>
+        <div class="flex gap-2 flex-wrap">
+          <span class="text-xs font-bold text-on-surface-variant self-center">ประเภท:</span>
+          <button onclick="togglePurposeFilter('all')"     id="fp-all"     class="filter-chip active">ทั้งหมด</button>
+          <button onclick="togglePurposeFilter('receive')" id="fp-receive" class="filter-chip purpose-r">รับของ</button>
+          <button onclick="togglePurposeFilter('deliver')" id="fp-deliver" class="filter-chip purpose-d">ส่งของ</button>
+        </div>
+      </div>
+
+      <!-- KPI Cards -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+        <div class="rpt-kpi"><div class="text-xs font-bold text-on-surface-variant uppercase tracking-wide">รายการทั้งหมด</div><div id="rpt-kpi-total"   class="text-3xl font-black text-primary mt-1">0</div></div>
+        <div class="rpt-kpi"><div class="text-xs font-bold text-on-surface-variant uppercase tracking-wide">เสร็จสิ้น</div><div id="rpt-kpi-done"     class="text-3xl font-black mt-1" style="color:#005537;">0</div></div>
+        <div class="rpt-kpi"><div class="text-xs font-bold text-on-surface-variant uppercase tracking-wide">รับของ</div><div id="rpt-kpi-receive" class="text-3xl font-black text-blue-600 mt-1">0</div></div>
+        <div class="rpt-kpi"><div class="text-xs font-bold text-on-surface-variant uppercase tracking-wide">ส่งของ</div><div id="rpt-kpi-deliver" class="text-3xl font-black text-green-600 mt-1">0</div></div>
+      </div>
+
+      <!-- Data Table -->
+      <div class="bg-white border border-outline-variant rounded-2xl shadow-sm overflow-hidden mb-4">
+        <div class="p-4 border-b border-outline-variant bg-surface-container-low flex justify-between items-center rpt-no-print">
+          <div class="font-bold text-on-surface text-sm flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary text-base">table_rows</span>ข้อมูลรายละเอียด
+            <span class="text-xs font-normal text-on-surface-variant ml-1">(<span id="rpt-row-count">0</span> รายการ)</span>
+          </div>
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-base">search</span>
+            <input id="rpt-search" type="text" placeholder="ค้นหา..." class="h-9 pl-8 pr-3 border border-outline-variant rounded-xl text-xs font-medium bg-white outline-none focus:border-primary w-36" oninput="applyReportFilter()"/>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="rpt-table">
+            <thead><tr>
+              <th>คิว #</th><th>ทะเบียน</th><th>จังหวัด</th><th>คนขับ</th>
+              <th>บริษัท</th><th>ประเภท</th><th>พื้นที่</th><th>สถานะ</th>
+              <th>เวลาเข้า</th><th>หมายเหตุ</th>
+            </tr></thead>
+            <tbody id="rpt-tbody"></tbody>
+          </table>
+        </div>
+        <div class="p-3 border-t border-outline-variant bg-surface flex justify-between items-center rpt-no-print">
+          <span class="text-xs text-on-surface-variant" id="rpt-footer-info">กำลังโหลด...</span>
+          <div class="flex gap-2">
+            <button onclick="openShareModal()" class="action-btn h-8 px-3 border border-primary text-primary text-xs gap-1"><span class="material-symbols-outlined text-sm">share</span>แชร์</button>
+            <button onclick="exportExcel()"    class="action-btn h-8 px-3 bg-green-600 text-white text-xs gap-1"><span class="material-symbols-outlined text-sm">download</span>Excel</button>
+            <button onclick="printPDF()"        class="action-btn h-8 px-3 bg-primary text-white text-xs gap-1"><span class="material-symbols-outlined text-sm">print</span>PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Area Bars -->
+      <div class="bg-white border border-outline-variant rounded-2xl p-5 shadow-sm">
+        <div class="font-bold text-on-surface mb-4 flex items-center gap-2"><span class="material-symbols-outlined text-primary text-xl">bar_chart</span>สรุปตามพื้นที่</div>
+        <div id="rpt-area-bars" class="flex flex-col gap-3"></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="page-settings" class="page-section">
+      <div class="mb-4"><h1 class="text-xl lg:text-2xl font-black text-primary">ตั้งค่าระบบ</h1></div>
+      <div class="bg-white border border-primary rounded-2xl p-5 shadow-sm mb-4">
+        <div class="font-bold text-on-surface mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-primary">database</span>Firebase Configuration</div>
+        <div class="text-xs text-on-surface-variant mb-4">แก้ไขค่า Firebase แล้วกด Apply</div>
+        <div class="flex flex-col gap-3">
+          <div><label class="text-xs font-bold text-on-surface-variant block mb-1">API Key</label><input id="cfg-apikey" type="text" placeholder="AIza..." class="mobile-input"/></div>
+          <div><label class="text-xs font-bold text-on-surface-variant block mb-1">Project ID</label><input id="cfg-projectid" type="text" placeholder="your-project-id" class="mobile-input"/></div>
+          <div><label class="text-xs font-bold text-on-surface-variant block mb-1">Database URL</label><input id="cfg-dburl" type="text" placeholder="https://..." class="mobile-input"/></div>
+          <div><label class="text-xs font-bold text-on-surface-variant block mb-1">App ID</label><input id="cfg-appid" type="text" placeholder="1:xxx:web:xxx" class="mobile-input"/></div>
+        </div>
+        <div class="flex gap-2 mt-4 flex-wrap">
+          <button onclick="applyFirebaseConfig()" class="action-btn h-12 px-5 bg-primary text-white text-sm gap-2"><span class="material-symbols-outlined text-base">sync</span>Apply & Reconnect</button>
+          <button onclick="resetDailyQueue()" class="action-btn h-12 px-4 border border-error text-error text-sm gap-2"><span class="material-symbols-outlined text-base">restart_alt</span>Reset คิว</button>
+        </div>
+      </div>
+      <div class="bg-white border border-outline-variant rounded-2xl p-5 shadow-sm">
+        <div class="font-bold text-on-surface mb-3 flex items-center gap-2"><span class="material-symbols-outlined text-primary">account_tree</span>Database Structure</div>
+        <div class="text-xs text-on-surface-variant space-y-2">
+          <div class="bg-surface-container rounded-xl p-3"><div class="font-black text-primary mb-1">queue_v2/{id}</div><div class="font-mono">queueNum, plate, province, driver, company, purpose, area, note, status, checkinTime, updatedAt</div></div>
+          <div class="bg-surface-container rounded-xl p-3 border border-green-200"><div class="font-black text-green-700 mb-1">truck_locations/{truckId}</div><div class="font-mono">lat, lng, accuracy, updatedAt, truckId, driver, plate, status, area</div></div>
+          <div class="bg-surface-container rounded-xl p-3"><div class="font-black text-tertiary-container mb-1">Status Flow</div><div class="flex items-center gap-2"><span class="status-pill waiting">waiting</span><span class="material-symbols-outlined text-outline text-sm">arrow_forward</span><span class="status-pill inarea">inarea</span><span class="material-symbols-outlined text-outline text-sm">arrow_forward</span><span class="status-pill done">done</span></div></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- MOBILE BOTTOM NAV -->
+<nav class="no-print lg:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center h-16 bg-white border-t border-outline-variant shadow-lg">
+  <button onclick="navigateTo('dashboard')" data-page="dashboard" class="mob-bottom flex flex-col items-center justify-center gap-0.5 flex-1 h-full text-primary"><span class="material-symbols-outlined text-xl">dashboard</span><span class="text-xs font-bold">หน้าหลัก</span></button>
+  <button onclick="navigateTo('queue')"     data-page="queue"     class="mob-bottom flex flex-col items-center justify-center gap-0.5 flex-1 h-full text-on-surface-variant"><span class="material-symbols-outlined text-xl">manage_accounts</span><span class="text-xs font-bold">คิว</span></button>
+  <button onclick="navigateTo('activity')"  data-page="activity"  class="mob-bottom flex flex-col items-center justify-center gap-0.5 flex-1 h-full text-on-surface-variant relative"><span class="material-symbols-outlined text-xl">notifications</span><span class="text-xs font-bold">กิจกรรม</span><span id="mob-activity-dot" class="absolute top-2 right-1 w-2.5 h-2.5 bg-red-500 rounded-full hidden border-2 border-white"></span></button>
+  <button onclick="navigateTo('gps-track')" data-page="gps-track" class="mob-bottom flex flex-col items-center justify-center gap-0.5 flex-1 h-full text-on-surface-variant relative"><span class="material-symbols-outlined text-xl">satellite_alt</span><span class="text-xs font-bold">GPS</span><span id="mob-gps-dot" class="absolute top-2 right-1 w-2.5 h-2.5 bg-green-500 rounded-full hidden border-2 border-white pulse"></span></button>
+  <button onclick="navigateTo('report')"    data-page="report"    class="mob-bottom flex flex-col items-center justify-center gap-0.5 flex-1 h-full text-on-surface-variant"><span class="material-symbols-outlined text-xl">assessment</span><span class="text-xs font-bold">รายงาน</span></button>
+  <button onclick="navigateTo('settings')"  data-page="settings"  class="mob-bottom flex flex-col items-center justify-center gap-0.5 flex-1 h-full text-on-surface-variant"><span class="material-symbols-outlined text-xl">settings</span><span class="text-xs font-bold">ตั้งค่า</span></button>
+</nav>
+
+<button class="fab no-print" onclick="openModal()"><span class="material-symbols-outlined text-3xl">add</span></button>
+
+<!-- REGISTER MODAL -->
+<div class="bottom-sheet" id="register-modal" onclick="handleSheetBackdrop(event)">
+  <div class="bottom-sheet-content">
+    <div class="bottom-sheet-handle"></div>
+    <div class="px-5 pb-3 pt-1 flex justify-between items-start border-b border-outline-variant">
+      <div><div class="font-black text-primary text-lg">ลงทะเบียนรถเข้า</div><div class="text-xs text-on-surface-variant mt-0.5">คิวถัดไป: <b id="next-queue-display" class="text-primary">–</b></div></div>
+      <button onclick="closeModal()" class="touch-target flex items-center justify-center rounded-xl text-on-surface-variant"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    <div class="px-5 py-4 flex flex-col gap-5">
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider block mb-2">ทะเบียน *</label><input id="reg-plate" type="text" placeholder="80-8752" class="mobile-input" oninput="this.value=this.value.toUpperCase()" autocomplete="off"/></div>
+        <div><label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider block mb-2">จังหวัด *</label><input id="reg-province" type="text" placeholder="เช่น กทม." class="mobile-input" list="province-list-modal" autocomplete="off"/><datalist id="province-list-modal"><option value="กรุงเทพมหานคร"/><option value="ชลบุรี"/><option value="สมุทรปราการ"/><option value="นนทบุรี"/><option value="ปทุมธานี"/><option value="ระยอง"/><option value="เชียงใหม่"/><option value="นครราชสีมา"/><option value="ขอนแก่น"/><option value="พระนครศรีอยุธยา"/><option value="สมุทรสาคร"/><option value="ราชบุรี"/></datalist></div>
+      </div>
+      <div><label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider block mb-2">ชื่อคนขับ *</label><input id="reg-driver" type="text" placeholder="ชื่อ-นามสกุล" class="mobile-input"/></div>
+      <div><label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider block mb-2">บริษัท / ผู้ส่ง</label><input id="reg-company" type="text" placeholder="ชื่อบริษัท" class="mobile-input"/></div>
+      <div>
+        <label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider block mb-2">วัตถุประสงค์ *</label>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="purpose-pill-mobile receive" id="p-receive" onclick="selectPurpose('receive')"><span class="material-symbols-outlined text-2xl">download</span><span>รับของ</span><span class="text-xs opacity-70">Receiving</span></div>
+          <div class="purpose-pill-mobile deliver" id="p-deliver" onclick="selectPurpose('deliver')"><span class="material-symbols-outlined text-2xl">upload</span><span>ส่งของ</span><span class="text-xs opacity-70">Delivery</span></div>
+        </div>
+      </div>
+      <div>
+        <label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider block mb-2">พื้นที่ปลายทาง *</label>
+        <div class="grid grid-cols-1 gap-2">
+          <div class="area-pill-mobile" data-area="Receiving P#1" onclick="selectArea(this)"><span class="material-symbols-outlined text-xl">inbox</span><span>Receiving P#1</span></div>
+          <div class="area-pill-mobile" data-area="Receiving P#5" onclick="selectArea(this)"><span class="material-symbols-outlined text-xl">inbox</span><span>Receiving P#5</span></div>
+          <div class="area-pill-mobile" data-area="Staging P#4"   onclick="selectArea(this)"><span class="material-symbols-outlined text-xl">inventory_2</span><span>Staging P#4</span></div>
+          <div class="area-pill-mobile" data-area="Shipping P#3"  onclick="selectArea(this)"><span class="material-symbols-outlined text-xl">outbox</span><span>Shipping P#3</span></div>
+          <div class="area-pill-mobile" data-area="ศุลกากร"       onclick="selectArea(this)"><span class="material-symbols-outlined text-xl">account_balance</span><span>ติดต่อศุลกากร</span></div>
+          <div class="area-pill-mobile" data-area="พื้นที่อื่น"   onclick="selectArea(this)"><span class="material-symbols-outlined text-xl">more_horiz</span><span>พื้นที่อื่นๆ</span></div>
+        </div>
+      </div>
+      <div><label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider block mb-2">หมายเหตุ</label><input id="reg-note" type="text" placeholder="ข้อมูลเพิ่มเติม (ถ้ามี)" class="mobile-input"/></div>
+    </div>
+    <div class="px-5 pb-6 pt-3 border-t border-outline-variant bg-white sticky bottom-0">
+      <button onclick="saveNewTruck()" id="save-btn" class="action-btn w-full h-14 bg-primary text-white text-base font-black gap-2 rounded-2xl shadow-lg">
+        <span class="material-symbols-outlined text-xl">add_circle</span>ลงทะเบียน &amp; ออกบัตรคิว
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     ★ SHARE REPORT MODAL
+══════════════════════════════════════ -->
+<div class="share-modal-overlay" id="share-modal" onclick="handleShareBackdrop(event)">
+  <div class="share-modal-box" id="share-modal-box">
+
+    <!-- Header -->
+    <div class="share-modal-header">
+      <div class="flex justify-between items-start">
+        <div>
+          <div class="text-lg font-black flex items-center gap-2">
+            <span class="material-symbols-outlined text-xl">share</span>แชร์รายงานให้ผู้บริหาร
+          </div>
+          <div class="text-xs opacity-70 mt-1" id="share-modal-subtitle">–</div>
+        </div>
+        <button onclick="closeShareModal()" class="w-9 h-9 rounded-xl bg-white bg-opacity-20 flex items-center justify-center hover:bg-opacity-30 transition-colors">
+          <span class="material-symbols-outlined text-xl">close</span>
+        </button>
+      </div>
+      <!-- Summary chips in header -->
+      <div class="flex gap-2 flex-wrap mt-3" id="share-summary-chips"></div>
+    </div>
+
+    <div class="p-5 flex flex-col gap-5">
+
+      <!-- URL Box -->
+      <div>
+        <div class="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2 flex items-center gap-1">
+          <span class="material-symbols-outlined text-sm">link</span>Link URL (คลิกเพื่อคัดลอก)
+        </div>
+        <div class="share-url-box" id="share-url-display" onclick="copyShareUrl()" title="คลิกเพื่อคัดลอก">
+          กำลังสร้าง URL...
+        </div>
+        <div class="flex gap-2 mt-2">
+          <button onclick="copyShareUrl()" id="copy-url-btn"
+            class="action-btn flex-1 h-10 bg-primary text-white text-sm gap-2">
+            <span class="material-symbols-outlined text-base" id="copy-icon">content_copy</span>
+            <span id="copy-label">คัดลอก URL</span>
+          </button>
+          <button onclick="openUrlNewTab()"
+            class="action-btn h-10 px-4 border border-outline-variant text-on-surface-variant text-sm gap-1 hover:bg-surface-container">
+            <span class="material-symbols-outlined text-base">open_in_new</span>ทดสอบ
+          </button>
+        </div>
+      </div>
+
+      <!-- QR Code -->
+      <div>
+        <div class="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-3 flex items-center gap-1">
+          <span class="material-symbols-outlined text-sm">qr_code_2</span>QR Code — สแกนเพื่อเปิดรายงาน
+        </div>
+        <div class="flex items-center gap-4 flex-wrap">
+          <div id="share-qr-canvas" class="flex-shrink-0"></div>
+          <div class="flex flex-col gap-2 flex-1 min-w-40">
+            <button onclick="downloadQR()"
+              class="action-btn h-10 px-4 border border-outline-variant text-on-surface-variant text-sm gap-2 w-full">
+              <span class="material-symbols-outlined text-base">download</span>บันทึก QR Image
+            </button>
+            <div class="text-xs text-on-surface-variant leading-relaxed bg-surface-container rounded-xl p-3">
+              <b>วิธีใช้:</b> ส่ง QR Code หรือ Link ให้ผู้บริหาร<br/>
+              เปิดด้วย Browser → รายงานจะโหลดอัตโนมัติ
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Share Channels -->
+      <div>
+        <div class="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-3 flex items-center gap-1">
+          <span class="material-symbols-outlined text-sm">send</span>ส่งผ่านช่องทาง
+        </div>
+        <div class="flex gap-2 flex-wrap">
+          <!-- Line -->
+          <button onclick="shareViaLine()" class="share-channel-btn">
+            <div class="icon-wrap bg-green-100">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="#00B900"><path d="M19.952 11.258C19.952 7.15 15.856 3.8 10.8 3.8S1.648 7.15 1.648 11.258c0 3.699 3.281 6.794 7.712 7.386.3.065.71.198.813.454.093.233.06.598.03.834l-.132.792c-.04.233-.186.914.8.498.987-.415 5.324-3.134 7.267-5.363 1.34-1.47 1.814-2.96 1.814-4.601z"/><path d="M8.66 13.327H7.054a.35.35 0 0 1-.35-.35V9.44a.35.35 0 0 1 .7 0v3.187H8.66a.35.35 0 0 1 0 .7zm6.56 0h-1.606a.35.35 0 0 1-.35-.35V9.44a.35.35 0 0 1 .35-.35h1.606a.35.35 0 0 1 0 .7H13.964v.963h.255a.35.35 0 0 1 0 .7h-.255v.974h.255a.35.35 0 0 1 0 .7h-.255v.2h1.257a.35.35 0 0 1 0 .7zm-3.64 0a.35.35 0 0 1-.35-.35V9.44a.35.35 0 0 1 .7 0v3.537a.35.35 0 0 1-.35.35zm-1.358 0a.35.35 0 0 1-.289-.15l-1.53-2.086v1.887a.35.35 0 0 1-.7 0V9.44a.35.35 0 0 1 .64-.197l1.53 2.086V9.44a.35.35 0 0 1 .7 0v3.537a.35.35 0 0 1-.35.35z" fill="#fff"/></svg>
+            </div>
+            <span>LINE</span>
+          </button>
+          <!-- WhatsApp -->
+          <button onclick="shareViaWhatsApp()" class="share-channel-btn">
+            <div class="icon-wrap bg-green-100">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="#25D366"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.38 1.26 4.8L2.05 22l5.46-1.43c1.37.73 2.93 1.14 4.53 1.14 5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2zm5.52 14.27c-.23.64-1.36 1.25-1.86 1.29-.5.04-.97.23-3.26-.68-2.73-1.09-4.46-3.82-4.6-4-.13-.18-1.1-1.46-1.1-2.78s.7-1.97.95-2.24c.25-.27.54-.34.72-.34.18 0 .36.002.52.01.17.008.39-.064.61.47.23.55.77 1.89.84 2.03.07.14.11.3.023.49-.09.18-.13.3-.26.46-.13.16-.27.36-.39.48-.13.13-.26.27-.11.52.15.25.67 1.1 1.43 1.78.98.88 1.81 1.15 2.06 1.28.25.14.4.11.55-.07.14-.18.62-.72.79-.97.17-.25.33-.2.56-.12.23.08 1.46.69 1.71.81.25.12.42.18.48.28.07.1.07.6-.16 1.24z"/></svg>
+            </div>
+            <span>WhatsApp</span>
+          </button>
+          <!-- Email -->
+          <button onclick="shareViaEmail()" class="share-channel-btn">
+            <div class="icon-wrap bg-blue-100">
+              <span class="material-symbols-outlined text-blue-600" style="font-size:24px;">mail</span>
+            </div>
+            <span>Email</span>
+          </button>
+          <!-- Native Share -->
+          <button onclick="shareViaNative()" class="share-channel-btn" id="native-share-btn">
+            <div class="icon-wrap bg-surface-container">
+              <span class="material-symbols-outlined text-primary" style="font-size:24px;">ios_share</span>
+            </div>
+            <span>อื่นๆ</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Expiry note -->
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
+        <span class="material-symbols-outlined text-amber-600 text-lg shrink-0 mt-0.5">info</span>
+        <div class="text-xs text-amber-800">
+          <b>หมายเหตุ:</b> Link นี้เปิดไฟล์ HTML เดิมด้วย filter ที่ตั้งไว้<br/>
+          ผู้รับต้องมี Firebase access จึงจะเห็นข้อมูล realtime
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"><div id="toast-inner" class="flex items-center gap-2 px-5 py-3 bg-inverse-surface text-white rounded-2xl shadow-2xl text-sm font-bold"><span class="material-symbols-outlined text-base" id="toast-icon">check_circle</span><span id="toast-text"></span></div></div>
+
+<script>
+// ════════════════════════════════════════════════════════
+// FIREBASE CONFIG
+// ════════════════════════════════════════════════════════
+const DEFAULT_CONFIG = {
+  apiKey:            "AIzaSyAoOTx0rrzqZ-V2t9QE6FhQQl5dcL81GZc",
+  authDomain:        "smart-logistics-system-v1.firebaseapp.com",
+  databaseURL:       "https://smart-logistics-system-v1-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:         "smart-logistics-system-v1",
+  storageBucket:     "smart-logistics-system-v1.appspot.com",
+  messagingSenderId: "255204464932",
+  appId:             "1:255204464932:web:c0e032f51866ae4e017bb1"
+};
+
+// ── STATE ──
+let db=null,isReady=false,queueData={},activityData={},truckLocations={};
+let selectedTruckId=null,selectedPurpose='',selectedAreaVal='';
+let leafletMap=null,truckMarkers={},mapInitialized=false;
+let rptFilteredData=[],rptPurposeFilter='all',rptQuickDate='all';
+let _shareUrl='', _qrInstance=null;
+
+// ════════════════════════════════════════════════════════
+// ★ SHARE URL ENGINE
+//   Encode filter state → URL hash params
+//   Format: #report?s=2025-01-01&e=2025-01-31&a=Receiving+P%231&st=done&p=receive
+// ════════════════════════════════════════════════════════
+function buildShareUrl() {
+  const base   = window.location.href.split('#')[0];
+  const sd     = document.getElementById('rpt-date-start')?.value  || '';
+  const ed     = document.getElementById('rpt-date-end')?.value    || '';
+  const area   = document.getElementById('rpt-filter-area')?.value || '';
+  const status = document.getElementById('rpt-filter-status')?.value || '';
+  const params = new URLSearchParams();
+  params.set('page', 'report');
+  if (sd)     params.set('s',  sd);
+  if (ed)     params.set('e',  ed);
+  if (area)   params.set('a',  area);
+  if (status) params.set('st', status);
+  if (rptPurposeFilter !== 'all') params.set('p', rptPurposeFilter);
+  return base + '#' + params.toString();
+}
+
+// ── Restore filter from URL hash on load ──
+function restoreFromHash() {
+  const hash = window.location.hash.replace('#','');
+  if (!hash) return;
+  try {
+    const params = new URLSearchParams(hash);
+    if (params.get('page') !== 'report') return;
+    // Restore values
+    const sd = params.get('s'), ed = params.get('e'), area = params.get('a'), status = params.get('st'), purpose = params.get('p');
+    if (sd)     { const el = document.getElementById('rpt-date-start'); if(el) el.value = sd; }
+    if (ed)     { const el = document.getElementById('rpt-date-end');   if(el) el.value = ed; }
+    if (area)   { const el = document.getElementById('rpt-filter-area');   if(el) el.value = area; }
+    if (status) { const el = document.getElementById('rpt-filter-status'); if(el) el.value = status; }
+    if (purpose && purpose !== 'all') {
+      rptPurposeFilter = purpose;
+      document.querySelectorAll('[id^="fp-"]').forEach(b => b.classList.remove('active'));
+      document.getElementById('fp-' + purpose)?.classList.add('active');
+    }
+    // Clear quick date chips since we have explicit dates
+    if (sd || ed) {
+      document.querySelectorAll('[id^="qd-"]').forEach(b => b.classList.remove('active'));
+      rptQuickDate = 'custom';
+    }
+    // Navigate to report page
+    setTimeout(() => { navigateTo('report'); }, 300);
+  } catch(e) { console.warn('restoreFromHash error', e); }
+}
+
+// ════════════════════════════════════════════════════════
+// ★ OPEN SHARE MODAL
+// ════════════════════════════════════════════════════════
+function openShareModal() {
+  if (!rptFilteredData.length) { showToast('ไม่มีข้อมูลรายงานที่จะแชร์', 'info'); return; }
+
+  _shareUrl = buildShareUrl();
+
+  // Fill URL display
+  const urlEl = document.getElementById('share-url-display');
+  if (urlEl) urlEl.textContent = _shareUrl;
+
+  // Fill subtitle
+  const sd = document.getElementById('rpt-date-start')?.value;
+  const ed = document.getElementById('rpt-date-end')?.value;
+  const sub = document.getElementById('share-modal-subtitle');
+  if (sub) {
+    const dateStr = (sd||ed) ? `${sd||'–'} ถึง ${ed||'–'}` : 'ทุกวัน';
+    sub.textContent = `${rptFilteredData.length} รายการ · ${dateStr}`;
+  }
+
+  // Fill summary chips
+  const chips = document.getElementById('share-summary-chips');
+  if (chips) {
+    const sd2  = document.getElementById('rpt-date-start')?.value;
+    const ed2  = document.getElementById('rpt-date-end')?.value;
+    const area = document.getElementById('rpt-filter-area')?.value;
+    const stat = document.getElementById('rpt-filter-status')?.value;
+    const purposeLbl = {receive:'รับของ',deliver:'ส่งของ'};
+    const statusLbl  = {waiting:'รอคิว',inarea:'ในพื้นที่',done:'เสร็จสิ้น'};
+    let chipHtml = `<span style="background:rgba(255,255,255,.2);color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;">${rptFilteredData.length} รายการ</span>`;
+    if (sd2)  chipHtml += `<span style="background:rgba(255,255,255,.15);color:#fff;font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;">${sd2}</span>`;
+    if (ed2)  chipHtml += `<span style="background:rgba(255,255,255,.15);color:#fff;font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;">→ ${ed2}</span>`;
+    if (area) chipHtml += `<span style="background:rgba(255,255,255,.15);color:#fff;font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;">${area}</span>`;
+    if (stat) chipHtml += `<span style="background:rgba(255,255,255,.15);color:#fff;font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;">${statusLbl[stat]||stat}</span>`;
+    if (rptPurposeFilter !== 'all') chipHtml += `<span style="background:rgba(255,255,255,.15);color:#fff;font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;">${purposeLbl[rptPurposeFilter]||rptPurposeFilter}</span>`;
+    chips.innerHTML = chipHtml;
+  }
+
+  // Generate QR Code
+  generateQR(_shareUrl);
+
+  // Reset copy button
+  const copyIcon  = document.getElementById('copy-icon');
+  const copyLabel = document.getElementById('copy-label');
+  if (copyIcon)  copyIcon.textContent  = 'content_copy';
+  if (copyLabel) copyLabel.textContent = 'คัดลอก URL';
+
+  document.getElementById('share-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeShareModal() {
+  document.getElementById('share-modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function handleShareBackdrop(e) {
+  if (e.target === document.getElementById('share-modal')) closeShareModal();
+}
+
+// ════════════════════════════════════════════════════════
+// ★ QR CODE GENERATOR
+// ════════════════════════════════════════════════════════
+function generateQR(url) {
+  const container = document.getElementById('share-qr-canvas');
+  if (!container) return;
+  container.innerHTML = ''; // clear old QR
+
+  try {
+    _qrInstance = new QRCode(container, {
+      text:          url,
+      width:         160,
+      height:        160,
+      colorDark:     '#003461',
+      colorLight:    '#ffffff',
+      correctLevel:  QRCode.CorrectLevel.M
+    });
+  } catch(e) {
+    container.innerHTML = `<div class="w-40 h-40 bg-surface-container rounded-xl flex items-center justify-center text-xs text-on-surface-variant p-3 text-center">QR ไม่พร้อมใช้งาน<br/>(URL ยาวเกิน)</div>`;
+  }
+}
+
+// ── Download QR as PNG ──
+function downloadQR() {
+  const container = document.getElementById('share-qr-canvas');
+  if (!container) return;
+  // QRCode.js renders as <canvas> or <img>
+  const canvas = container.querySelector('canvas');
+  const img    = container.querySelector('img');
+  if (canvas) {
+    const a = document.createElement('a');
+    a.href     = canvas.toDataURL('image/png');
+    a.download = `Report_QR_${new Date().toISOString().slice(0,10)}.png`;
+    a.click();
+    showToast('✓ บันทึก QR Code แล้ว', 'success');
+  } else if (img) {
+    const a = document.createElement('a');
+    a.href     = img.src;
+    a.download = `Report_QR_${new Date().toISOString().slice(0,10)}.png`;
+    a.click();
+    showToast('✓ บันทึก QR Code แล้ว', 'success');
+  } else {
+    showToast('ไม่สามารถบันทึก QR ได้', 'error');
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// ★ COPY URL
+// ════════════════════════════════════════════════════════
+async function copyShareUrl() {
+  if (!_shareUrl) return;
+  try {
+    await navigator.clipboard.writeText(_shareUrl);
+  } catch(e) {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = _shareUrl;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+  }
+  // Visual feedback
+  const btn   = document.getElementById('copy-url-btn');
+  const icon  = document.getElementById('copy-icon');
+  const label = document.getElementById('copy-label');
+  const urlEl = document.getElementById('share-url-display');
+  if (icon)  icon.textContent  = 'check_circle';
+  if (label) label.textContent = 'คัดลอกแล้ว!';
+  if (btn)   { btn.style.background = '#16a34a'; }
+  if (urlEl) { urlEl.style.background = '#dcfce7'; urlEl.style.borderColor = '#16a34a'; }
+  showToast('✓ คัดลอก URL แล้ว — ส่งให้ผู้บริหารได้เลย', 'success');
+  setTimeout(() => {
+    if (icon)  icon.textContent  = 'content_copy';
+    if (label) label.textContent = 'คัดลอก URL';
+    if (btn)   btn.style.background = '';
+    if (urlEl) { urlEl.style.background = ''; urlEl.style.borderColor = ''; }
+  }, 2500);
+}
+
+function openUrlNewTab() {
+  if (_shareUrl) window.open(_shareUrl, '_blank');
+}
+
+// ════════════════════════════════════════════════════════
+// ★ SHARE CHANNELS
+// ════════════════════════════════════════════════════════
+function buildShareMessage() {
+  const sd   = document.getElementById('rpt-date-start')?.value || '';
+  const ed   = document.getElementById('rpt-date-end')?.value   || '';
+  const area = document.getElementById('rpt-filter-area')?.value || '';
+  const dateStr = (sd||ed) ? `${sd} ถึง ${ed}` : 'ทุกวัน';
+  const areaStr = area || 'ทุกพื้นที่';
+  return `📊 รายงานคิวรถ Logistics Hub\n📅 ${dateStr} | 📍 ${areaStr}\n✅ ${rptFilteredData.length} รายการ\n\n🔗 ดูรายงานได้ที่:\n${_shareUrl}`;
+}
+
+function shareViaLine() {
+  const msg = encodeURIComponent(buildShareMessage());
+  window.open(`https://line.me/R/msg/text/?${msg}`, '_blank');
+}
+
+function shareViaWhatsApp() {
+  const msg = encodeURIComponent(buildShareMessage());
+  window.open(`https://wa.me/?text=${msg}`, '_blank');
+}
+
+function shareViaEmail() {
+  const sd   = document.getElementById('rpt-date-start')?.value || '';
+  const ed   = document.getElementById('rpt-date-end')?.value   || '';
+  const subject = encodeURIComponent(`รายงานคิวรถ Logistics Hub — ${sd||'ทุกวัน'} ถึง ${ed||'ทุกวัน'}`);
+  const body    = encodeURIComponent(buildShareMessage());
+  window.location.href = `mailto:?subject=${subject}&body=${body}`;
+}
+
+async function shareViaNative() {
+  if (!navigator.share) { showToast('Browser นี้ไม่รองรับ Native Share', 'info'); return; }
+  const sd = document.getElementById('rpt-date-start')?.value || '';
+  const ed = document.getElementById('rpt-date-end')?.value   || '';
+  try {
+    await navigator.share({
+      title: `รายงานคิวรถ ${sd} – ${ed}`,
+      text:  buildShareMessage(),
+      url:   _shareUrl
+    });
+    showToast('แชร์สำเร็จ', 'success');
+  } catch(e) {
+    if (e.name !== 'AbortError') showToast('แชร์ไม่สำเร็จ: ' + e.message, 'error');
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// REPORT FILTER ENGINE
+// ════════════════════════════════════════════════════════
+function applyReportFilter() {
+  const sd   = document.getElementById('rpt-date-start')?.value   || '';
+  const ed   = document.getElementById('rpt-date-end')?.value     || '';
+  const area = document.getElementById('rpt-filter-area')?.value  || '';
+  const stat = document.getElementById('rpt-filter-status')?.value|| '';
+  const srch = (document.getElementById('rpt-search')?.value||'').toLowerCase();
+  const tsS  = sd ? new Date(sd+'T00:00:00').getTime() : 0;
+  const tsE  = ed ? new Date(ed+'T23:59:59').getTime() : Infinity;
+  let items = Object.entries(queueData).map(([id,v])=>({id,...v}));
+  items = items.filter(i=>{ const t=i.checkinTime||0; return t>=tsS&&t<=tsE; });
+  if (area) items = items.filter(i=>i.area===area);
+  if (stat) items = items.filter(i=>i.status===stat);
+  if (rptPurposeFilter!=='all') items = items.filter(i=>i.purpose===rptPurposeFilter);
+  if (srch) items = items.filter(i=>(i.plate||'').toLowerCase().includes(srch)||(i.driver||'').toLowerCase().includes(srch)||(i.company||'').toLowerCase().includes(srch)||(i.area||'').toLowerCase().includes(srch)||String(i.queueNum).includes(srch));
+  items.sort((a,b)=>(a.checkinTime||0)-(b.checkinTime||0));
+  rptFilteredData = items;
+  renderReportTable(items); renderReportKPI(items); renderReportAreaBars(items);
+}
+
+function renderReportTable(items) {
+  const tbody=document.getElementById('rpt-tbody'), cnt=document.getElementById('rpt-row-count'), foot=document.getElementById('rpt-footer-info');
+  if(!tbody) return;
+  if(cnt)  cnt.textContent=items.length;
+  if(foot) foot.textContent=`แสดง ${items.length} รายการ`;
+  const sL={waiting:'รอคิว',inarea:'ในพื้นที่',done:'เสร็จสิ้น'}, pL={receive:'รับของ',deliver:'ส่งของ'};
+  if(!items.length){ tbody.innerHTML=`<tr><td colspan="10" class="rpt-empty"><span class="material-symbols-outlined text-5xl block mb-2" style="opacity:.25">inbox</span>ไม่พบรายการในช่วงวันที่ที่เลือก</td></tr>`; return; }
+  tbody.innerHTML=items.map(t=>`<tr><td><b class="text-primary">${t.queueNum||'–'}</b></td><td><b>${t.plate||'–'}</b></td><td class="text-on-surface-variant">${t.province||'–'}</td><td>${t.driver||'–'}</td><td class="text-on-surface-variant">${t.company||'–'}</td><td><span class="rpt-badge ${t.purpose||''}">${pL[t.purpose]||t.purpose||'–'}</span></td><td>${t.area||'–'}</td><td><span class="rpt-badge ${t.status||''}">${sL[t.status]||t.status||'–'}</span></td><td class="text-on-surface-variant whitespace-nowrap">${fmtDatetime(t.checkinTime)}</td><td class="text-on-surface-variant">${t.note||'–'}</td></tr>`).join('');
+}
+
+function renderReportKPI(items) {
+  const s=(id,v)=>{ const e=document.getElementById(id); if(e) e.textContent=v; };
+  s('rpt-kpi-total',items.length); s('rpt-kpi-done',items.filter(i=>i.status==='done').length);
+  s('rpt-kpi-receive',items.filter(i=>i.purpose==='receive').length); s('rpt-kpi-deliver',items.filter(i=>i.purpose==='deliver').length);
+}
+
+function renderReportAreaBars(items) {
+  const el=document.getElementById('rpt-area-bars'); if(!el) return;
+  const areas=['Receiving P#1','Receiving P#5','Staging P#4','Shipping P#3','ศุลกากร','พื้นที่อื่น'];
+  const mx=Math.max(...areas.map(a=>items.filter(i=>i.area===a).length),1);
+  el.innerHTML=areas.map(area=>{ const cnt=items.filter(i=>i.area===area).length, done=items.filter(i=>i.area===area&&i.status==='done').length, pct=Math.round((cnt/mx)*100);
+    return `<div class="flex items-center gap-3"><div class="text-sm font-bold text-on-surface-variant w-28 shrink-0 truncate">${area}</div><div class="flex-1 bg-surface-container-highest rounded-full h-3 overflow-hidden"><div class="bg-primary h-3 rounded-full transition-all duration-500" style="width:${pct}%"></div></div><div class="text-xs font-black text-primary w-12 text-right shrink-0">${cnt} คัน</div><div class="text-xs text-green-600 font-bold w-14 shrink-0">${done} เสร็จ</div></div>`;
+  }).join('');
+}
+
+function setQuickDate(preset) {
+  rptQuickDate=preset;
+  document.querySelectorAll('[id^="qd-"]').forEach(b=>b.classList.remove('active'));
+  document.getElementById('qd-'+preset)?.classList.add('active');
+  const now=new Date(), toISO=d=>d.toISOString().split('T')[0];
+  const sd=document.getElementById('rpt-date-start'), ed=document.getElementById('rpt-date-end');
+  if(preset==='today'){sd.value=ed.value=toISO(now);}
+  else if(preset==='yesterday'){const y=new Date(now);y.setDate(y.getDate()-1);sd.value=ed.value=toISO(y);}
+  else if(preset==='week'){const w=new Date(now);w.setDate(w.getDate()-6);sd.value=toISO(w);ed.value=toISO(now);}
+  else if(preset==='month'){sd.value=toISO(new Date(now.getFullYear(),now.getMonth(),1));ed.value=toISO(now);}
+  else{sd.value='';ed.value='';}
+  applyReportFilter();
+}
+
+function togglePurposeFilter(val) {
+  rptPurposeFilter=val;
+  document.querySelectorAll('[id^="fp-"]').forEach(b=>b.classList.remove('active'));
+  document.getElementById('fp-'+val)?.classList.add('active');
+  applyReportFilter();
+}
+
+function fmtDatetime(ts){ if(!ts) return '–'; return new Date(ts).toLocaleString('th-TH',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}); }
+function fmtDate(ts){ if(!ts) return '–'; return new Date(ts).toLocaleDateString('th-TH',{year:'numeric',month:'2-digit',day:'2-digit'}); }
+
+// ════════════════════════════════════════════════════════
+// EXPORT EXCEL
+// ════════════════════════════════════════════════════════
+function exportExcel() {
+  if(!rptFilteredData.length){showToast('ไม่มีข้อมูลให้ Export','info');return;}
+  const sL={waiting:'รอคิว',inarea:'ในพื้นที่',done:'เสร็จสิ้น'}, pL={receive:'รับของ',deliver:'ส่งของ'};
+  const rows=rptFilteredData.map(t=>({'คิว #':t.queueNum||'–','ทะเบียน':t.plate||'–','จังหวัด':t.province||'–','คนขับ':t.driver||'–','บริษัท':t.company||'–','วัตถุประสงค์':pL[t.purpose]||t.purpose||'–','พื้นที่':t.area||'–','สถานะ':sL[t.status]||t.status||'–','เวลาเข้า':fmtDatetime(t.checkinTime),'หมายเหตุ':t.note||'–'}));
+  const areas=['Receiving P#1','Receiving P#5','Staging P#4','Shipping P#3','ศุลกากร','พื้นที่อื่น'];
+  const sumRows=areas.map(a=>({'พื้นที่':a,'รถทั้งหมด':rptFilteredData.filter(i=>i.area===a).length,'รอคิว':rptFilteredData.filter(i=>i.area===a&&i.status==='waiting').length,'ในพื้นที่':rptFilteredData.filter(i=>i.area===a&&i.status==='inarea').length,'เสร็จสิ้น':rptFilteredData.filter(i=>i.area===a&&i.status==='done').length,'รับของ':rptFilteredData.filter(i=>i.area===a&&i.purpose==='receive').length,'ส่งของ':rptFilteredData.filter(i=>i.area===a&&i.purpose==='deliver').length}));
+  const wb=XLSX.utils.book_new();
+  const ws1=XLSX.utils.json_to_sheet(rows); ws1['!cols']=[{wch:8},{wch:14},{wch:14},{wch:18},{wch:20},{wch:14},{wch:16},{wch:12},{wch:20},{wch:24}]; XLSX.utils.book_append_sheet(wb,ws1,'รายละเอียด');
+  const ws2=XLSX.utils.json_to_sheet(sumRows); ws2['!cols']=[{wch:18},{wch:12},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10}]; XLSX.utils.book_append_sheet(wb,ws2,'สรุปตามพื้นที่');
+  const sd=document.getElementById('rpt-date-start')?.value||'ทั้งหมด', ed=document.getElementById('rpt-date-end')?.value||'ทั้งหมด';
+  const kpiRows=[{'หัวข้อ':'ช่วงวันที่','ค่า':sd+' ถึง '+ed},{'หัวข้อ':'รายการทั้งหมด','ค่า':rptFilteredData.length},{'หัวข้อ':'เสร็จสิ้น','ค่า':rptFilteredData.filter(i=>i.status==='done').length},{'หัวข้อ':'รับของ','ค่า':rptFilteredData.filter(i=>i.purpose==='receive').length},{'หัวข้อ':'ส่งของ','ค่า':rptFilteredData.filter(i=>i.purpose==='deliver').length},{'หัวข้อ':'Export เมื่อ','ค่า':new Date().toLocaleString('th-TH')}];
+  const ws3=XLSX.utils.json_to_sheet(kpiRows); ws3['!cols']=[{wch:24},{wch:28}]; XLSX.utils.book_append_sheet(wb,ws3,'สรุป KPI');
+  XLSX.writeFile(wb,`LogisticsReport_${new Date().toISOString().slice(0,10)}.xlsx`);
+  showToast(`✓ Export Excel สำเร็จ — ${rptFilteredData.length} รายการ`,'success');
+}
+
+// ════════════════════════════════════════════════════════
+// PRINT PDF
+// ════════════════════════════════════════════════════════
+function printPDF() {
+  if(!rptFilteredData.length){showToast('ไม่มีข้อมูลให้พิมพ์','info');return;}
+  const sd=document.getElementById('rpt-date-start')?.value, ed=document.getElementById('rpt-date-end')?.value;
+  const dateStr=(sd||ed)?`${sd?fmtDate(new Date(sd+' 00:00').getTime()):'–'} ถึง ${ed?fmtDate(new Date(ed+' 00:00').getTime()):'–'}`:'ทุกวัน';
+  const ph=document.getElementById('rpt-print-header'),dr=document.getElementById('rpt-print-daterange'),ts=document.getElementById('rpt-print-ts');
+  if(ph) ph.style.display='flex'; if(dr) dr.textContent=`ช่วงวันที่: ${dateStr}  |  จำนวน ${rptFilteredData.length} รายการ`; if(ts) ts.textContent=new Date().toLocaleString('th-TH');
+  setTimeout(()=>{ window.print(); setTimeout(()=>{if(ph) ph.style.display='none';},500); },150);
+}
+
+// ════════════════════════════════════════════════════════
+// GPS / QUEUE (unchanged)
+// ════════════════════════════════════════════════════════
+function getActivePlatesInQueue(){return new Set(Object.values(queueData).filter(q=>q.status==='waiting'||q.status==='inarea').map(q=>(q.plate||'').toUpperCase().trim()));}
+function findOrphanLocationKeys(){const ap=getActivePlatesInQueue();return Object.entries(truckLocations).filter(([,l])=>{const p=(l.plate||l.truckId||'').toUpperCase().trim();return p&&!ap.has(p);}).map(([k])=>k);}
+async function cleanupOrphanLocations(){if(!isReady){showToast('ยังไม่ได้เชื่อมต่อ Firebase','error');return;}const orphans=findOrphanLocationKeys();if(!orphans.length){showToast('ไม่พบข้อมูลค้าง','info');return;}const labels=orphans.map(k=>{const l=truckLocations[k];return l?.plate||l?.truckId||k;}).join(', ');if(!confirm(`ลบข้อมูลตำแหน่งรถ ${orphans.length} คัน?\nทะเบียน: ${labels}`))return;try{const u={};orphans.forEach(k=>{u['truck_locations/'+k]=null;});await db.ref('/').update(u);await logActivity('system',`ลบข้อมูลตำแหน่งรถค้าง ${orphans.length} คัน`,`ทะเบียน: ${labels}`);showToast(`✓ ลบข้อมูลค้าง ${orphans.length} คัน`,'success');}catch(err){showToast('Error: '+err.message,'error');}finally{checkOrphanBanner();}}
+function checkOrphanBanner(){const o=findOrphanLocationKeys(),b=document.getElementById('orphan-banner'),btn=document.getElementById('cleanup-btn'),cnt=document.getElementById('cleanup-count');if(!b)return;if(o.length>0){const l=o.map(k=>{const loc=truckLocations[k];return loc?.plate||loc?.truckId||k;});const d=document.getElementById('orphan-banner-detail');if(d)d.textContent=`ทะเบียนค้าง: ${l.join(', ')}`;b.classList.remove('hidden');btn?.classList.remove('hidden');if(cnt)cnt.textContent=o.length;}else{b.classList.add('hidden');btn?.classList.add('hidden');if(cnt)cnt.textContent='0';}}
+function buildTruckIcon(plate,isLive,isStale){const bc=isLive?'#003461':isStale?'#d97706':'#94a3b8',gc=isLive?'rgba(0,52,97,.35)':isStale?'rgba(217,119,6,.3)':'rgba(148,163,184,.2)';const svg=`<svg width="44" height="28" viewBox="0 0 44 28" fill="none">${isLive?`<ellipse cx="22" cy="26" rx="14" ry="4" fill="${gc}"/>`:''}  <rect x="1" y="6" width="28" height="16" rx="3" fill="${bc}" stroke="white" stroke-width="1.2"/><rect x="29" y="9" width="13" height="13" rx="3" fill="${bc}" stroke="white" stroke-width="1.2"/><rect x="31" y="10.5" width="8" height="5.5" rx="1.5" fill="rgba(255,255,255,0.35)"/><circle cx="8" cy="23" r="3.5" fill="#1e293b" stroke="white" stroke-width="1"/><circle cx="8" cy="23" r="1.5" fill="${bc}"/><circle cx="20" cy="23" r="3.5" fill="#1e293b" stroke="white" stroke-width="1"/><circle cx="20" cy="23" r="1.5" fill="${bc}"/><circle cx="36" cy="23" r="3.5" fill="#1e293b" stroke="white" stroke-width="1"/><circle cx="36" cy="23" r="1.5" fill="${bc}"/><rect x="41" y="13" width="2" height="4" rx="1" fill="#fbbf24"/></svg>`;const html=`<div style="display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;"><div style="background:${bc};color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:5px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.4);font-family:'Sarabun',sans-serif;letter-spacing:.5px;border:1.5px solid rgba(255,255,255,.3);">${plate}</div><div style="filter:drop-shadow(0 3px 8px ${gc});">${svg}</div></div>`;return L.divIcon({html,className:'',iconSize:[80,60],iconAnchor:[40,56],popupAnchor:[0,-58]});}
+function initLeafletMap(){if(mapInitialized)return;mapInitialized=true;leafletMap=L.map('gps-map',{center:[13.75,100.52],zoom:12,zoomControl:true});L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(leafletMap);const s=document.createElement('style');s.textContent='@keyframes platePulse{0%,100%{opacity:1}50%{opacity:.85}}@keyframes gps-ring{0%{box-shadow:0 0 0 0 rgba(34,197,94,.5)}70%{box-shadow:0 0 0 10px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}';document.head.appendChild(s);dbgLog('Leaflet map initialized','ok');}
+function updateAllMarkers(){if(!leafletMap)return;const now=Date.now(),ap=getActivePlatesInQueue(),valid=Object.entries(truckLocations).filter(([,l])=>{const p=(l.plate||l.truckId||'').toUpperCase().trim();return ap.has(p);});const vk=new Set(valid.map(([k])=>k));Object.keys(truckMarkers).forEach(k=>{if(!vk.has(k)){leafletMap.removeLayer(truckMarkers[k]);delete truckMarkers[k];}});const ng=document.getElementById('map-no-gps');if(!valid.filter(([,l])=>l.lat&&l.lng).length){if(ng)ng.style.display='flex';document.getElementById('map-status-text').textContent='ไม่มีรถในคิว';return;}if(ng)ng.style.display='none';valid.forEach(([id,loc])=>{if(!loc.lat||!loc.lng)return;const lat=parseFloat(loc.lat),lng=parseFloat(loc.lng),isLive=loc.updatedAt&&(now-loc.updatedAt)<5*60000,isStale=loc.updatedAt&&!isLive&&(now-loc.updatedAt)<30*60000,plate=loc.plate||loc.truckId||id;const qe=Object.values(queueData).find(q=>(q.plate||'').toUpperCase()===plate.toUpperCase());const driver=loc.driver||qe?.driver||'–',area=loc.area||qe?.area||'–',status=qe?.status||loc.status||'unknown',queueNum=qe?.queueNum||'–',acc=loc.accuracy?Math.round(loc.accuracy):'?',province=loc.province||qe?.province||'';const sm={waiting:'รอคิว',inarea:'ในพื้นที่',done:'เสร็จสิ้น',unknown:'ไม่ระบุ'},sb={waiting:'#fef3c7;color:#92400e',inarea:'#dbeafe;color:#1e40af',done:'#dcfce7;color:#166534',unknown:'#f1f5f9;color:#64748b'};const ph=`<div class="truck-popup"><div class="truck-popup-header"><div><div class="truck-popup-plate">${plate} <span class="truck-popup-province">${province}</span></div><div style="font-size:12px;color:#64748b;margin-top:2px;">${driver}</div></div><span class="truck-popup-badge ${isLive?'live':'stale'}">${isLive?'● GPS Live':'● สัญญาณเก่า'}</span></div><div class="truck-popup-rows"><div class="truck-popup-row"><span class="label">คิว</span><span class="val">#${queueNum}</span></div><div class="truck-popup-row"><span class="label">พื้นที่</span><span class="val">${area}</span></div><div class="truck-popup-row"><span class="label">สถานะ</span><span class="val"><span style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;background:${(sb[status]||sb.unknown).split(';')[0]};${(sb[status]||sb.unknown).split(';')[1]||''}">${sm[status]||status}</span></span></div><div class="truck-popup-row"><span class="label">อัปเดต</span><span class="val">${getTimeAgo(loc.updatedAt)}</span></div></div><div class="truck-popup-actions"><button class="popup-btn primary" onclick="openGoogleMaps(${lat},${lng})">Google Maps</button><button class="popup-btn secondary" onclick="shareLocation(${lat},${lng},'${plate}')">แชร์</button></div></div>`;const icon=buildTruckIcon(plate,isLive,isStale);if(truckMarkers[id]){truckMarkers[id].setLatLng([lat,lng]);truckMarkers[id].setIcon(icon);truckMarkers[id].getPopup()?.setContent(ph);}else{const m=L.marker([lat,lng],{icon}).addTo(leafletMap).bindPopup(ph,{maxWidth:280,minWidth:260});m.on('click',()=>{selectedTruckId=id;renderTruckList();showMobileDetail(id);});truckMarkers[id]=m;}});}
+function updateMapStatus(plate,isLive,acc){document.getElementById('map-status-text').textContent=isLive?`Live · ${plate} · ±${acc}m`:`เก่า · ${plate}`;}
+function zoomAllTrucks(){const ap=getActivePlatesInQueue();const pts=Object.values(truckLocations).filter(t=>{const p=(t.plate||t.truckId||'').toUpperCase().trim();return ap.has(p)&&t.lat&&t.lng;}).map(t=>[parseFloat(t.lat),parseFloat(t.lng)]);if(!pts.length){showToast('ไม่มีรถในคิวที่มีสัญญาณ GPS','info');return;}if(!leafletMap)return;pts.length===1?leafletMap.setView(pts[0],15):leafletMap.fitBounds(L.latLngBounds(pts),{padding:[40,40]});document.getElementById('map-status-text').textContent=`รถ ${pts.length} คัน · ดูทั้งหมด`;selectedTruckId=null;renderTruckList();}
+function selectTruck(id,lat,lng){selectedTruckId=id;renderTruckList();if(lat!=null&&lng!=null){if(!leafletMap)return;leafletMap.flyTo([parseFloat(lat),parseFloat(lng)],16,{duration:1.2});setTimeout(()=>{if(truckMarkers[id])truckMarkers[id].openPopup();},1300);const loc=truckLocations[id],now=Date.now(),live=loc?.updatedAt&&(now-loc.updatedAt)<5*60000,acc=loc?.accuracy?Math.round(loc.accuracy):'?',plate=loc?.plate||loc?.truckId||id;updateMapStatus(plate,live,acc);showMobileDetail(id);}else showToast('รถคันนี้ยังไม่มีสัญญาณ GPS','info');}
+function showMobileDetail(id){const loc=truckLocations[id];if(!loc)return;const now=Date.now(),qe=Object.values(queueData).find(q=>(q.plate||'').toUpperCase()===(loc.plate||loc.truckId||'').toUpperCase());const plate=loc.plate||loc.truckId||id,driver=loc.driver||qe?.driver||'–',area=loc.area||qe?.area||'–',qNum=qe?.queueNum||'–',status=qe?.status||loc.status||'unknown',acc=loc.accuracy?Math.round(loc.accuracy):'?',isLive=loc.updatedAt&&(now-loc.updatedAt)<5*60000,lat=parseFloat(loc.lat),lng=parseFloat(loc.lng),sLbl={waiting:'รอคิว',inarea:'ในพื้นที่',done:'เสร็จสิ้น',unknown:'ไม่ระบุ'}[status]||status;const el=document.getElementById('mobile-truck-detail'),ec=document.getElementById('mobile-truck-detail-content');if(!el||!ec)return;el.style.display='block';ec.innerHTML=`<div class="flex items-center gap-3 mb-3"><div class="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-white font-black text-lg shrink-0">${qNum!=='–'?qNum:'?'}</div><div><div class="font-black text-primary text-lg">${plate}</div><div class="text-sm text-on-surface-variant">${driver}</div></div><div class="ml-auto"><span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold ${isLive?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'}">${isLive?'GPS Live':'สัญญาณเก่า'}</span></div></div><div class="grid grid-cols-2 gap-2 text-sm mb-3"><div class="bg-surface-container rounded-xl p-3"><div class="text-xs text-on-surface-variant mb-0.5">พื้นที่</div><div class="font-bold text-on-surface">${area}</div></div><div class="bg-surface-container rounded-xl p-3"><div class="text-xs text-on-surface-variant mb-0.5">สถานะ</div><div class="font-bold text-on-surface">${sLbl}</div></div></div><div class="bg-surface-container rounded-xl p-3 font-mono text-xs text-on-surface-variant mb-3">${lat.toFixed(6)}, ${lng.toFixed(6)}</div><div class="flex gap-2"><button onclick="openGoogleMaps(${lat},${lng})" class="action-btn flex-1 h-11 bg-primary text-white text-sm gap-1"><span class="material-symbols-outlined text-base">open_in_new</span>Google Maps</button><button onclick="shareLocation(${lat},${lng},'${plate}')" class="action-btn h-11 px-4 border border-outline-variant text-on-surface-variant text-sm gap-1"><span class="material-symbols-outlined text-base">share</span></button></div>`;}
+function dbgLog(msg,type){const el=document.getElementById('debug-log');if(!el)return;const cls=type==='ok'?'log-ok':type==='err'?'log-err':type==='warn'?'log-warn':'';const line=document.createElement('div'),t=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',second:'2-digit'});line.className=cls;line.textContent='['+t+'] '+msg;while(el.children.length>=12)el.removeChild(el.firstChild);el.appendChild(line);}
+function initFirebase(cfg){dbgLog('initFirebase: '+cfg.projectId,'');try{if(firebase.apps.length)firebase.app().delete().then(()=>{db=null;isReady=false;_doInitFirebase(cfg);}).catch(()=>_doInitFirebase(cfg));else _doInitFirebase(cfg);}catch(e){dbgLog('initFirebase error: '+e.message,'err');updateBadge(false);}}
+function _doInitFirebase(cfg){try{firebase.initializeApp(cfg);db=firebase.database();dbgLog('Firebase initialized ✓','ok');db.ref('.info/connected').on('value',snap=>{const ok=!!snap.val();updateBadge(ok);dbgLog('.info/connected → '+ok,ok?'ok':'err');if(ok&&!isReady){isReady=true;startListeners();}});}catch(e){dbgLog('_doInitFirebase error: '+e.message,'err');updateBadge(false);showToast('Firebase error: '+e.message,'error');}}
+function updateBadge(ok){const b=document.getElementById('fb-conn-badge');if(!b)return;if(ok){b.className='fb-status connected no-print';b.innerHTML='<span class="w-2 h-2 rounded-full bg-green-600 inline-block"></span><span class="hidden sm:inline"> Connected</span>';}else{b.className='fb-status disconnected no-print';b.innerHTML='<span class="w-2 h-2 rounded-full bg-red-600 inline-block pulse"></span><span class="hidden sm:inline"> Disconnected</span>';}}
+let _listenersStarted=false;
+function startListeners(){if(_listenersStarted)return;_listenersStarted=true;dbgLog('startListeners()','');db.ref('queue_v2').orderByChild('checkinTime').on('value',snap=>{queueData=snap.val()||{};dbgLog('queue_v2: '+Object.keys(queueData).length+' items','ok');onQueueUpdate();checkOrphanBanner();updateAllMarkers();if(document.getElementById('page-report')?.classList.contains('active'))applyReportFilter();},err=>dbgLog('queue_v2 error: '+err.message,'err'));db.ref('logistics_hub/activity_feed').limitToLast(60).on('value',snap=>{activityData=snap.val()||{};renderActivityFeed();updateActivityBadge();},err=>dbgLog('activity_feed error: '+err.message,'err'));db.ref('queue_v2_counter').on('value',snap=>{const n=(snap.val()||0)+1;const el=document.getElementById('next-queue-display');if(el)el.textContent='คิว #'+n;});db.ref('truck_locations').on('value',snap=>{const raw=snap.val();dbgLog('truck_locations: '+(raw?Object.keys(raw).length+' entries':'empty'),raw?'ok':'warn');truckLocations=raw||{};onTruckLocationsUpdate();checkOrphanBanner();},err=>dbgLog('truck_locations error: '+err.message,'err'));}
+function onTruckLocationsUpdate(){const now=Date.now(),ap=getActivePlatesInQueue(),all=Object.values(truckLocations),act=all.filter(t=>{const p=(t.plate||t.truckId||'').toUpperCase().trim();return ap.has(p);});const live=act.filter(t=>t.updatedAt&&(now-t.updatedAt)<5*60000&&t.lat).length,stale=act.filter(t=>t.updatedAt&&(now-t.updatedAt)>=5*60000&&(now-t.updatedAt)<30*60000&&t.lat).length;const tp=all.map(t=>(t.plate||t.truckId||'').toUpperCase()),noTrack=Array.from(ap).filter(p=>!tp.includes(p)).length;document.getElementById('gps-cnt-total').textContent=act.length;document.getElementById('gps-cnt-live').textContent=live;document.getElementById('gps-cnt-stale').textContent=stale;document.getElementById('gps-cnt-notrack').textContent=noTrack;const ke=document.getElementById('kpi-gps-live');if(ke)ke.textContent=live;document.getElementById('gps-live-count').textContent=live;const hl=live>0;document.getElementById('gps-sidebar-dot')?.classList.toggle('hidden',!hl);document.getElementById('mob-gps-dot')?.classList.toggle('hidden',!hl);document.getElementById('mob-drawer-gps-live')?.classList.toggle('hidden',!hl);if(act.filter(t=>t.lat).length>0){if(!mapInitialized)initLeafletMap();updateAllMarkers();}else{Object.keys(truckMarkers).forEach(k=>{leafletMap?.removeLayer(truckMarkers[k]);delete truckMarkers[k];});const ng=document.getElementById('map-no-gps');if(ng)ng.style.display='flex';document.getElementById('map-status-text').textContent='ไม่มีรถในคิว';}renderTruckList();}
+function renderTruckList(){const search=(document.getElementById('gps-search-input')?.value||'').toLowerCase(),now=Date.now(),ap=getActivePlatesInQueue(),scroll=document.getElementById('truck-list-scroll');if(!scroll)return;const aqItems=Object.values(queueData).filter(q=>q.status==='waiting'||q.status==='inarea');const locByPlate={};Object.entries(truckLocations).forEach(([k,loc])=>{const p=(loc.plate||loc.truckId||'').toUpperCase().trim();if(p)locByPlate[p]={key:k,...loc};});let items=aqItems.map(q=>{const plate=(q.plate||'').toUpperCase().trim();const loc=locByPlate[plate];return{id:loc?loc.key:'notrack_'+plate,truckId:plate,plate:q.plate||'–',province:q.province||'',driver:q.driver||'–',area:q.area||'–',status:q.status,queueNum:q.queueNum||'–',lat:loc?.lat||null,lng:loc?.lng||null,accuracy:loc?.accuracy||null,updatedAt:loc?.updatedAt||null,purpose:q.purpose||''};});if(search)items=items.filter(i=>(i.plate||'').toLowerCase().includes(search)||(i.driver||'').toLowerCase().includes(search)||(i.area||'').toLowerCase().includes(search)||String(i.queueNum).includes(search));items.sort((a,b)=>{const s=x=>!x.lat?2:(now-(x.updatedAt||0))<5*60000?0:1;return s(a)-s(b);});document.getElementById('truck-list-count').textContent=items.length;if(!items.length){scroll.innerHTML='<div class="p-8 text-center text-on-surface-variant"><span class="material-symbols-outlined text-5xl block mb-2" style="opacity:.3">local_shipping</span><p class="font-bold text-sm">ไม่มีรถในคิว</p></div>';return;}const tsv=c=>`<svg width="28" height="18" viewBox="0 0 44 28" fill="none"><rect x="1" y="6" width="28" height="16" rx="3" fill="${c}" stroke="white" stroke-width="1.2"/><rect x="29" y="9" width="13" height="13" rx="3" fill="${c}" stroke="white" stroke-width="1.2"/><rect x="31" y="10.5" width="8" height="5.5" rx="1.5" fill="rgba(255,255,255,0.35)"/><circle cx="8" cy="23" r="3.5" fill="#1e293b" stroke="white" stroke-width="1"/><circle cx="20" cy="23" r="3.5" fill="#1e293b" stroke="white" stroke-width="1"/><circle cx="36" cy="23" r="3.5" fill="#1e293b" stroke="white" stroke-width="1"/><rect x="41" y="13" width="2" height="4" rx="1" fill="#fbbf24"/></svg>`;scroll.innerHTML=items.map(item=>{const hg=item.lat!=null,il=hg&&item.updatedAt&&(now-item.updatedAt)<5*60000,is2=hg&&!il,isel=item.id===selectedTruckId,dc=il?'gps-dot-live gps-ping':is2?'gps-dot-stale':'gps-dot-off',sL={waiting:'รอคิว',inarea:'ในพื้นที่',done:'เสร็จสิ้น'}[item.status]||item.status,sB={waiting:'bg-yellow-100 text-yellow-800',inarea:'bg-blue-100 text-blue-800',done:'bg-green-100 text-green-800'}[item.status]||'bg-gray-100 text-gray-600',ts2=item.updatedAt?getTimeAgo(item.updatedAt):'ยังไม่มี GPS',ls=item.lat!=null?item.lat:'null',lg2=item.lng!=null?item.lng:'null',tc=il?'#003461':is2?'#d97706':'#94a3b8';return`<div class="truck-row ${isel?'selected':''}" onclick="selectTruck('${item.id}',${ls},${lg2})"><span class="${dc}"></span><div class="shrink-0">${tsv(tc)}</div><div class="flex-1 min-w-0"><div class="font-black text-primary text-sm leading-tight truncate">${item.plate} <span class="text-xs font-normal text-on-surface-variant">${item.province}</span> <span class="text-xs font-black text-on-surface-variant">#${item.queueNum}</span></div><div class="text-xs text-on-surface-variant truncate">${item.driver}</div><div class="flex items-center gap-2 mt-1"><span class="text-xs px-1.5 py-0.5 rounded-full font-bold ${sB}">${sL}</span><span class="text-xs text-on-surface-variant truncate">${item.area}</span></div></div><div class="text-right shrink-0"><div class="text-xs font-bold ${il?'text-green-600':is2?'text-amber-600':'text-slate-400'}">${il?'● Live':is2?'● เก่า':'○ ไม่มี GPS'}</div><div class="text-xs text-on-surface-variant">${ts2}</div>${hg?`<button onclick="event.stopPropagation();openGoogleMaps(${item.lat},${item.lng})" class="mt-1 text-xs text-primary font-bold flex items-center gap-0.5 ml-auto"><span class="material-symbols-outlined text-xs">open_in_new</span>Maps</button>`:''}</div></div>`;}).join('');}
+function forceRefreshGps(){if(!db){showToast('ยังไม่ได้เชื่อมต่อ Firebase','error');return;}db.ref('truck_locations').once('value',snap=>{const raw=snap.val();truckLocations=raw||{};onTruckLocationsUpdate();checkOrphanBanner();const ap=getActivePlatesInQueue();const vc=Object.values(truckLocations).filter(t=>{const p=(t.plate||t.truckId||'').toUpperCase().trim();return ap.has(p);}).length;showToast(raw?`รีเฟรช GPS · ${vc} คัน`:'ไม่พบข้อมูล GPS',raw?'success':'info');},err=>{showToast('Error: '+err.message,'error');});}
+function openGoogleMaps(lat,lng){window.open('https://www.google.com/maps?q='+lat+','+lng,'_blank');}
+function shareLocation(lat,lng,plate){const url='https://www.google.com/maps?q='+lat+','+lng;if(navigator.share){navigator.share({title:'ตำแหน่งรถ '+plate,url});}else{const ta=document.createElement('textarea');ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);showToast('คัดลอก URL แล้ว','success');}}
+function onQueueUpdate(){const items=Object.values(queueData),waiting=items.filter(i=>i.status==='waiting').length,inarea=items.filter(i=>i.status==='inarea').length,done=items.filter(i=>i.status==='done').length;animateCount('kpi-total',items.length);animateCount('kpi-waiting',waiting);animateCount('kpi-inarea',inarea);animateCount('qs-waiting',waiting);animateCount('qs-inarea',inarea);animateCount('qs-done',done);const qc=document.getElementById('queue-count');if(qc)qc.textContent=items.length;const dot=document.getElementById('queue-live-dot');if(dot)dot.classList.toggle('hidden',waiting===0);renderQueue();renderAreaBreakdown();renderDashboardActivity();const lu=document.getElementById('last-update');if(lu)lu.textContent=new Date().toLocaleTimeString('th-TH');renderTruckList();if(mapInitialized)updateAllMarkers();}
+function renderQueue(){const aF=document.getElementById('filter-area')?.value||'',sF=document.getElementById('filter-status')?.value||'',pF=document.getElementById('filter-purpose')?.value||'',now=Date.now();let items=Object.entries(queueData).map(([id,v])=>({id,...v}));if(aF)items=items.filter(i=>i.area===aF);if(sF)items=items.filter(i=>i.status===sF);if(pF)items=items.filter(i=>i.purpose===pF);const ord={waiting:0,inarea:1,done:2};items.sort((a,b)=>ord[a.status]!==ord[b.status]?ord[a.status]-ord[b.status]:(a.checkinTime||0)-(b.checkinTime||0));const info=document.getElementById('queue-info');if(info)info.textContent='แสดง '+items.length+' รายการ';const cards=document.getElementById('queue-cards');if(cards)cards.innerHTML=!items.length?'<div class="text-center py-12 text-on-surface-variant"><span class="material-symbols-outlined text-5xl block mb-2" style="opacity:.3">local_shipping</span><p class="font-bold">ไม่พบรายการ</p></div>':items.map(t=>mobileCard(t)).join('');const tbody=document.getElementById('queue-table-body');if(tbody)tbody.innerHTML=!items.length?'<tr><td colspan="7" class="p-8 text-center text-on-surface-variant">ไม่พบรายการ</td></tr>':items.map(t=>desktopRow(t,now)).join('');}
+function getGpsCell(plate,now){const ap=getActivePlatesInQueue(),pu=(plate||'').toUpperCase().trim();const loc=Object.values(truckLocations).find(t=>(t.plate||t.truckId||'').toUpperCase()===pu);if(!ap.has(pu)||!loc||!loc.lat)return'<span class="text-xs text-slate-400">–</span>';const il=loc.updatedAt&&(now-loc.updatedAt)<5*60000,key=Object.keys(truckLocations).find(k=>truckLocations[k]===loc)||plate;return`<span class="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${il?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'}"><span style="width:6px;height:6px;border-radius:50%;background:${il?'#22c55e':'#f59e0b'};display:inline-block;"></span>${il?'Live':getTimeAgo(loc.updatedAt)}</span><button onclick="navigateTo('gps-track');setTimeout(()=>selectTruck('${key}',${loc.lat},${loc.lng}),400)" class="block text-xs text-primary font-bold mt-0.5 hover:underline">ดูแผนที่</button>`;}
+function mobileCard(t){const sL={waiting:'รอคิว',inarea:'ในพื้นที่',done:'เสร็จสิ้น'},s=t.status||'waiting',now=Date.now(),pu=(t.plate||'').toUpperCase().trim();const loc=(s==='waiting'||s==='inarea')?Object.values(truckLocations).find(l=>(l.plate||l.truckId||'').toUpperCase()===pu):null;const hg=loc&&loc.lat,il=hg&&loc.updatedAt&&(now-loc.updatedAt)<5*60000,key=hg?(Object.keys(truckLocations).find(k=>truckLocations[k]===loc)||t.plate):null;let actions='';if(t.status==='waiting')actions=`<button onclick="updateStatus('${t.id}','inarea')" class="action-btn h-10 px-4 bg-primary text-white text-sm"><span class="material-symbols-outlined text-sm">location_on</span>เรียกเข้าพื้นที่</button>`;else if(t.status==='inarea')actions=`<button onclick="updateStatus('${t.id}','done')" class="action-btn h-10 px-4 bg-tertiary-container text-white text-sm"><span class="material-symbols-outlined text-sm">check_circle</span>เสร็จสิ้น</button>`;if(hg)actions+=`<button onclick="navigateTo('gps-track');setTimeout(()=>selectTruck('${key}',${loc.lat},${loc.lng}),400)" class="action-btn h-10 px-3 border ${il?'border-green-300 text-green-700':'border-amber-300 text-amber-700'} text-sm gap-1"><span class="material-symbols-outlined text-sm">satellite_alt</span>${il?'Live':'GPS'}</button>`;actions+=`<button onclick="deleteEntry('${t.id}','${(t.plate||'').replace(/'/g,'')}')\" class="action-btn h-10 w-10 border border-outline-variant text-on-surface-variant hover:bg-error-container hover:text-error"><span class="material-symbols-outlined text-sm">delete</span></button>`;return`<div class="queue-card ${t.status==='inarea'?'inarea':''}"><div class="flex justify-between items-start mb-3"><div class="flex items-center gap-3"><div class="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-white font-black text-lg shrink-0">${t.queueNum||'?'}</div><div><div class="text-lg font-black text-primary">${t.plate||'–'} <span class="text-sm font-normal text-on-surface-variant">${t.province||''}</span></div><div class="text-sm text-on-surface-variant">${t.driver||'–'}</div></div></div><div class="flex flex-col items-end gap-1"><span class="status-pill ${s}">${sL[t.status]||t.status}</span>${hg?`<span class="text-xs font-bold px-1.5 py-0.5 rounded-full ${il?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'}">${il?'GPS Live':'GPS เก่า'}</span>`:''}</div></div><div class="flex items-center gap-3 mb-3 text-sm text-on-surface-variant"><span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">place</span>${t.area||'–'}</span><span class="text-xs">${timeAgo(t.checkinTime)}</span></div><div class="flex gap-2 flex-wrap">${actions}</div></div>`;}
+function desktopRow(t,now){const sC={waiting:'bg-yellow-100 text-yellow-800',inarea:'bg-blue-100 text-blue-800',done:'bg-green-100 text-green-800'},sL={waiting:'รอคิว',inarea:'ในพื้นที่',done:'เสร็จสิ้น'};let actions='';if(t.status==='waiting')actions=`<button onclick="updateStatus('${t.id}','inarea')" class="action-btn h-8 px-3 bg-primary text-white text-xs">เรียกเข้าพื้นที่</button>`;else if(t.status==='inarea')actions=`<button onclick="updateStatus('${t.id}','done')" class="action-btn h-8 px-3 bg-tertiary-container text-white text-xs">เสร็จสิ้น</button>`;actions+=`<button onclick="deleteEntry('${t.id}','${(t.plate||'').replace(/'/g,'')}')\" class="action-btn h-8 w-8 border border-outline-variant text-on-surface-variant hover:bg-error-container hover:text-error ml-1"><span class="material-symbols-outlined text-sm">delete</span></button>`;return`<tr class="hover:bg-surface-container-low transition-colors ${t.status==='inarea'?'bg-blue-50 border-l-4 border-l-primary':''}"><td class="p-4"><div class="text-xl font-black text-primary">${t.queueNum||'–'}</div><div class="text-xs text-on-surface-variant">${timeAgo(t.checkinTime)}</div></td><td class="p-4"><div class="text-base font-black text-primary">${t.plate||'–'} <span class="text-sm font-normal">${t.province||''}</span></div><div class="text-xs text-on-surface-variant">${t.driver||'–'}</div></td><td class="p-4"><div class="text-sm font-bold">${t.area||'–'}</div></td><td class="p-4 text-sm text-on-surface-variant">${t.company||'–'}</td><td class="p-4">${getGpsCell(t.plate,now)}</td><td class="p-4"><span class="px-2 py-1 rounded-full text-xs font-bold ${sC[t.status]||''}">${sL[t.status]||t.status}</span></td><td class="p-4 text-right">${actions}</td></tr>`;}
+function renderAreaBreakdown(){const el=document.getElementById('area-breakdown');if(!el)return;const areas=['Receiving P#1','Receiving P#5','Staging P#4','Shipping P#3','ศุลกากร','พื้นที่อื่น'],items=Object.values(queueData);el.innerHTML=areas.map(area=>{const w=items.filter(i=>i.area===area&&i.status==='waiting').length,n=items.filter(i=>i.area===area&&i.status==='inarea').length,total=w+n,pct=Math.min(100,total*20);return`<div class="flex items-center gap-3"><div class="text-sm font-bold text-on-surface-variant w-28 shrink-0 truncate">${area}</div><div class="flex-1 bg-surface-container-highest rounded-full h-2.5"><div class="bg-primary h-2.5 rounded-full transition-all" style="width:${pct}%"></div></div><div class="text-xs text-right w-20 shrink-0">${w>0?`<span class="text-secondary-container font-black">${w} รอ</span>`:''}${n>0?`<span class="text-tertiary-container font-black ml-1">${n} ใน</span>`:''}${total===0?`<span class="text-outline">ว่าง</span>`:''}</div></div>`;}).join('');}
+function renderActivityFeed(){const feed=document.getElementById('activity-feed');if(!feed)return;const items=Object.entries(activityData).map(([id,a])=>({id,...a})).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,60);if(!items.length){feed.innerHTML='<div class="p-8 text-center text-on-surface-variant">ยังไม่มีกิจกรรม</div>';return;}const ui={checkin:{bg:'bg-surface-container',icon:'local_shipping',color:'text-on-surface-variant'},inarea:{bg:'bg-primary',icon:'location_on',color:'text-white'},done:{bg:'bg-tertiary-container',icon:'check_circle',color:'text-white'},deleted:{bg:'bg-error-container',icon:'delete',color:'text-error'},system:{bg:'bg-surface-container',icon:'settings',color:'text-on-surface-variant'}};feed.innerHTML=items.map(item=>{const u=ui[item.type]||ui.system,isNew=item.timestamp&&(Date.now()-item.timestamp)<120000;return`<div class="p-4 flex items-start gap-3 hover:bg-surface-container-low"><div class="w-10 h-10 rounded-full ${u.bg} flex items-center justify-center shrink-0"><span class="material-symbols-outlined ${u.color} text-base">${u.icon}</span></div><div class="flex-1 min-w-0"><div class="text-sm font-bold text-on-surface">${item.message||'–'}</div><div class="text-xs text-on-surface-variant">${item.detail||''} · ${getTimeAgo(item.timestamp)}</div></div>${isNew?'<span class="w-2.5 h-2.5 rounded-full bg-primary shrink-0 mt-2"></span>':''}</div>`;}).join('');renderDashboardActivity();}
+function renderDashboardActivity(){const el=document.getElementById('dashboard-activity-list');if(!el)return;const items=Object.values(activityData).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,4);if(!items.length){el.innerHTML='<div class="text-sm text-on-surface-variant p-2">ยังไม่มีกิจกรรม</div>';return;}const icons={checkin:'local_shipping',inarea:'location_on',done:'check_circle',deleted:'delete',system:'settings'};el.innerHTML=items.map(i=>`<div class="flex items-start gap-3 p-3 rounded-xl bg-surface-container-low"><span class="material-symbols-outlined text-primary text-lg mt-0.5">${icons[i.type]||'info'}</span><div class="min-w-0"><div class="text-sm font-bold text-on-surface truncate">${i.message||'–'}</div><div class="text-xs text-on-surface-variant">${getTimeAgo(i.timestamp)}</div></div></div>`).join('');}
+async function updateStatus(id,ns){if(!isReady)return;const item=queueData[id];if(!item)return;try{await db.ref('queue_v2/'+id).update({status:ns,updatedAt:firebase.database.ServerValue.TIMESTAMP});const msgs={inarea:'เรียกเข้าพื้นที่แล้ว ✓',done:'เสร็จสิ้น ✓'};await logActivity(ns,'คิว #'+item.queueNum+' · '+item.plate+' — '+msgs[ns],item.area+' · '+item.driver);showToast(msgs[ns]||'อัปเดตสำเร็จ','success');if(ns==='done')setTimeout(checkOrphanBanner,1000);}catch(err){showToast('Error: '+err.message,'error');}}
+async function deleteEntry(id,plate){if(!isReady)return;if(!confirm('ลบรายการ '+plate+' ออกจากคิว?'))return;const item=queueData[id];try{await db.ref('queue_v2/'+id).remove();if(item)await logActivity('deleted','ลบ '+plate+' ออกจากคิว',item.driver||'');showToast('ลบรายการแล้ว','info');await autoDeleteTruckLocation(plate);}catch(err){showToast('Error: '+err.message,'error');}}
+async function autoDeleteTruckLocation(plate){if(!db||!plate)return;const pu=plate.toUpperCase().trim();const keys=Object.entries(truckLocations).filter(([,l])=>(l.plate||l.truckId||'').toUpperCase().trim()===pu).map(([k])=>k);if(!keys.length)return;try{const u={};keys.forEach(k=>{u['truck_locations/'+k]=null;});await db.ref('/').update(u);}catch(e){}}
+async function saveNewTruck(){const plate=document.getElementById('reg-plate').value.trim().toUpperCase(),province=document.getElementById('reg-province').value.trim(),driver=document.getElementById('reg-driver').value.trim(),company=document.getElementById('reg-company').value.trim(),note=document.getElementById('reg-note').value.trim();if(!plate)return showToast('กรุณากรอกหมายเลขทะเบียน','error');if(!province)return showToast('กรุณากรอกหมวด/จังหวัด','error');if(!driver)return showToast('กรุณากรอกชื่อคนขับ','error');if(!selectedPurpose)return showToast('กรุณาเลือกวัตถุประสงค์','error');if(!selectedAreaVal)return showToast('กรุณาเลือกพื้นที่ปลายทาง','error');if(!isReady)return showToast('ยังไม่ได้เชื่อมต่อ Firebase','error');const btn=document.getElementById('save-btn');btn.disabled=true;btn.innerHTML='<span class="material-symbols-outlined text-xl" style="animation:spin 1s linear infinite">sync</span> กำลังบันทึก...';try{const snap=await db.ref('queue_v2_counter').once('value');const queueNum=(snap.val()||0)+1;await db.ref('queue_v2').push({queueNum,plate,province,driver,company:company||'–',purpose:selectedPurpose,area:selectedAreaVal,note:note||'',status:'waiting',checkinTime:firebase.database.ServerValue.TIMESTAMP,updatedAt:firebase.database.ServerValue.TIMESTAMP});await db.ref('queue_v2_counter').set(queueNum);await logActivity('checkin','คิว #'+queueNum+' · '+plate+' '+province+' เข้าระบบ',driver+' · '+selectedAreaVal);closeModal();showToast('✓ ออกคิว #'+queueNum+' ให้ '+plate+' สำเร็จ','success');}catch(err){showToast('Error: '+err.message,'error');}finally{btn.disabled=false;btn.innerHTML='<span class="material-symbols-outlined text-xl">add_circle</span>ลงทะเบียน & ออกบัตรคิว';}}
+async function resetDailyQueue(){if(!isReady)return showToast('ยังไม่ได้เชื่อมต่อ','error');if(!confirm('Reset หมายเลขคิวกลับเป็น 1?'))return;try{await db.ref('queue_v2_counter').set(0);await logActivity('system','Reset คิวรายวันแล้ว','Counter เริ่มใหม่จาก 1');showToast('✓ Reset สำเร็จ','success');}catch(err){showToast('Error: '+err.message,'error');}}
+async function logActivity(type,message,detail=''){if(!db)return;try{await db.ref('logistics_hub/activity_feed').push({type,message,detail,timestamp:firebase.database.ServerValue.TIMESTAMP});['notif-badge','activity-dot','mob-activity-dot'].forEach(id=>document.getElementById(id)?.classList.remove('hidden'));}catch(e){}}
+function applyFirebaseConfig(){const config={apiKey:document.getElementById('cfg-apikey').value.trim(),projectId:document.getElementById('cfg-projectid').value.trim(),databaseURL:document.getElementById('cfg-dburl').value.trim(),appId:document.getElementById('cfg-appid').value.trim()};config.authDomain=config.projectId+'.firebaseapp.com';if(!config.apiKey||!config.databaseURL)return showToast('กรุณากรอก API Key และ Database URL','error');localStorage.setItem('fb_config',JSON.stringify(config));_listenersStarted=false;initFirebase(config);showToast('กำลังเชื่อมต่อ...','info');}
+function getTimeAgo(ts){if(!ts)return'–';const min=Math.floor((Date.now()-ts)/60000);if(min<1)return'เมื่อกี้';if(min<60)return min+' นาที';const hr=Math.floor(min/60);if(hr<24)return hr+' ชม.';return new Date(ts).toLocaleDateString('th-TH');}
+function timeAgo(ts){return getTimeAgo(ts);}
+function animateCount(elId,target){const el=document.getElementById(elId);if(!el)return;el.textContent=target;el.classList.add('realtime-update');setTimeout(()=>el.classList.remove('realtime-update'),1000);}
+function updateActivityBadge(){const r=Object.values(activityData).filter(a=>a.timestamp&&(Date.now()-a.timestamp)<120000).length;if(r>0)['notif-badge','activity-dot','mob-activity-dot'].forEach(id=>document.getElementById(id)?.classList.remove('hidden'));}
+function clearActivityBadge(){['notif-badge','activity-dot','mob-activity-dot'].forEach(id=>document.getElementById(id)?.classList.add('hidden'));showToast('ทำเครื่องหมายอ่านแล้ว','info');}
+function navigateTo(page){document.querySelectorAll('.page-section').forEach(s=>s.classList.remove('active'));document.getElementById('page-'+page)?.classList.add('active');document.querySelectorAll('.desk-nav').forEach(btn=>{btn.classList.toggle('active',btn.dataset.page===page);btn.classList.toggle('text-on-surface-variant',btn.dataset.page!==page);});document.querySelectorAll('.mob-bottom').forEach(btn=>{btn.classList.toggle('text-primary',btn.dataset.page===page);btn.classList.toggle('text-on-surface-variant',btn.dataset.page!==page);});window.scrollTo(0,0);if(page==='gps-track'){setTimeout(()=>{if(!mapInitialized)initLeafletMap();else leafletMap?.invalidateSize();updateAllMarkers();checkOrphanBanner();},100);}if(page==='report'){setTimeout(()=>applyReportFilter(),80);}}
+function toggleMobileNav(){const d=document.getElementById('mobile-drawer'),o=document.getElementById('drawer-overlay'),open=!d.classList.contains('-translate-x-full');d.classList.toggle('-translate-x-full',open);o.classList.toggle('hidden',open);}
+function closeMobileNav(){document.getElementById('mobile-drawer').classList.add('-translate-x-full');document.getElementById('drawer-overlay').classList.add('hidden');}
+function openModal(){document.getElementById('register-modal').classList.add('open');document.body.style.overflow='hidden';selectedPurpose='';selectedAreaVal='';document.querySelectorAll('.purpose-pill-mobile').forEach(p=>p.classList.remove('selected'));document.querySelectorAll('.area-pill-mobile').forEach(a=>a.classList.remove('selected'));}
+function closeModal(){document.getElementById('register-modal').classList.remove('open');document.body.style.overflow='';['reg-plate','reg-province','reg-driver','reg-company','reg-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});}
+function handleSheetBackdrop(e){if(e.target===document.getElementById('register-modal'))closeModal();}
+function selectPurpose(p){selectedPurpose=p;document.getElementById('p-receive').classList.toggle('selected',p==='receive');document.getElementById('p-deliver').classList.toggle('selected',p==='deliver');}
+function selectArea(el){document.querySelectorAll('.area-pill-mobile').forEach(a=>a.classList.remove('selected'));el.classList.add('selected');selectedAreaVal=el.dataset.area;}
+let _tt;
+function showToast(msg,type='info'){const el=document.getElementById('toast'),inner=document.getElementById('toast-inner');document.getElementById('toast-text').textContent=msg;document.getElementById('toast-icon').textContent=type==='success'?'check_circle':type==='error'?'error':'info';inner.style.background=type==='error'?'#ba1a1a':type==='success'?'#003461':'#233144';el.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>el.classList.remove('show'),3500);}
+
+// ── STARTUP ──
+window.addEventListener('DOMContentLoaded',()=>{
+  const saved=localStorage.getItem('fb_config');
+  if(saved){try{const cfg=JSON.parse(saved);document.getElementById('cfg-apikey').value=cfg.apiKey||'';document.getElementById('cfg-projectid').value=cfg.projectId||'';document.getElementById('cfg-dburl').value=cfg.databaseURL||'';document.getElementById('cfg-appid').value=cfg.appId||'';initFirebase(cfg);}catch(e){initFirebase(DEFAULT_CONFIG);}}
+  else initFirebase(DEFAULT_CONFIG);
+  // Default today
+  const today=new Date().toISOString().split('T')[0];
+  document.getElementById('rpt-date-start').value=today;
+  document.getElementById('rpt-date-end').value=today;
+  // ★ Restore from URL hash if present (deep link)
+  restoreFromHash();
+  if(!window.location.hash) navigateTo('dashboard');
+  dbgLog('App started','ok');
+});
+</script>
+</body>
+</html>
